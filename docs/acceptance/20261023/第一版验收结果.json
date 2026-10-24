@@ -1,0 +1,110 @@
+{
+  "dateAsiaShanghai": "2026-10-23",
+  "scope": "Existing nine-field project tracking baseline",
+  "result": "passed",
+  "builds": {
+    "frontend": {
+      "exitCode": 0,
+      "result": "vite build succeeded"
+    },
+    "springboot": {
+      "exitCode": 0,
+      "result": "Maven BUILD SUCCESS; unit tests skipped; integration checks reported separately"
+    }
+  },
+  "api": {
+    "apiStatus": "passed",
+    "count": 27,
+    "passed": [
+      "database writable health before checks",
+      "isolated database initially empty",
+      "create all nine fields including zero and null",
+      "search Chinese text",
+      "stage filter excludes other stages",
+      "update preserves empty quantity",
+      "summary totals",
+      "validation projectName  ",
+      "validation stage MP",
+      "validation testDemandQuantity -1",
+      "validation estimatedTotalDemand 9007199254740992",
+      "validation projectName 字字字字字字字字字字字字字字字字字字字字",
+      "CSV BOM, nine columns, quoted text and blank quantity",
+      "CSV with title row imports",
+      "invalid CSV row 3",
+      "invalid CSV row 6",
+      "invalid CSV row 7",
+      "invalid CSV row 8",
+      "invalid CSV row 5",
+      "invalid batch imports no partial rows",
+      "Spring CORS",
+      "Flask CORS",
+      "delete all verification records",
+      "delete missing record returns 404",
+      "data survives abrupt backend restart",
+      "write after backend restart",
+      "database writable health after restart"
+    ],
+    "realDataBefore": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "realDataAfter": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "realDataUnchanged": true
+  },
+  "browser": {
+    "status": "passed",
+    "browserUrl": "http://127.0.0.1:15173/",
+    "isolation": "Same Vue source with test-only Vite proxy to isolated Spring Boot and Flask instances; production CORS checked separately.",
+    "checks": [
+      "中文缩写说明、九字段表单及表格分界线显示正常",
+      "页面填写九字段新增成功，数量0保留，项目数与统计更新",
+      "编辑回填正确，EVT改DVT、数量0清空及总需求1000改1200保存成功",
+      "256字输入被后端拒绝，错误在编辑弹窗可见，修正后可保存",
+      "中文关键词搜索只显示目标项目",
+      "搜索与阶段组合筛选：PVT无结果、DVT显示目标项目",
+      "通过页面导出CSV，文件BOM、两条记录、编辑后的阶段及空数量正确",
+      "通过页面选择CSV文件导入1条记录，项目数3、预计需求2120、PVT数量2",
+      "浏览器刷新后3条验收记录和编辑结果仍在"
+    ],
+    "screenshot": "（本地路径已省略）"
+  },
+  "browserCsvExport": {
+    "exportedRecords": 2,
+    "bom": true,
+    "editedStage": "DVT",
+    "blankQuantityPreserved": true,
+    "editedTotal": "1200",
+    "date": "2027-02-20"
+  },
+  "desktopShortcutTargetVerified": true,
+  "startupResult": "Already running",
+  "stopAndColdStart": {
+    "stopResult": "Services stopped. Project data retained.",
+    "startResult": "Ready: http://127.0.0.1:5173/",
+    "projectCountAfterRestart": 0,
+    "databaseWritable": true,
+    "allServiceStatuses": [
+      200,
+      200,
+      200
+    ]
+  },
+  "productionHealth": {
+    "httpStatus": 200,
+    "databaseWritable": true,
+    "flaskSummaryStatus": 200,
+    "frontendStatus": 200
+  },
+  "temporaryListenersRemaining": 0,
+  "sourceAndArtifactSha256": {
+    "frontend/src/App.vue": "6c212fa9d0464cc4dd9520156b2ae96cfb240e5070a3efb1e60353e521931ebe",
+    "frontend/src/style.css": "f94f4ae3842596c00acba44dbea62873eb4a36b749d89249ae933fa1ff283383",
+    "frontend/src/api.js": "d5a633274b246b41bf5819c71702763663537f4745edfb88e6858cecd16d3ec9",
+    "backend/flask/app.py": "ba112b2c04105c64f1aaf586a095eb0b9c83d3b8a99964537dbf823570c06f1d",
+    "backend/springboot/src/main/java/com/example/odmtracker/ProjectController.java": "8ee6cdd5782fceca6e7b434ad049f26a19f256472d129ecf435c13c095636046",
+    "backend/springboot/target/odm-tracker-1.0.0.jar": "67d12ba6880952445e55f04ccfa720e130283d4d62d6fee161cb2955e4cfc3d3"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "status": "passed",
+  "unitTests": 47,
+  "integration": {
+    "status": "passed",
+    "count": 43,
+    "passed": [
+      "database writable health before checks",
+      "isolated database initially empty",
+      "create all nine fields including zero and null",
+      "search Chinese text",
+      "stage filter excludes other stages",
+      "update preserves empty quantity",
+      "summary totals",
+      "validation projectName  ",
+      "validation stage MP",
+      "validation testDemandQuantity -1",
+      "validation estimatedTotalDemand 9007199254740992",
+      "validation projectName 字字字字字字字字字字字字字字字字字字字字",
+      "CSV BOM, nine columns, quoted text and blank quantity",
+      "CSV with title row imports",
+      "invalid CSV row 3",
+      "invalid CSV row 6",
+      "invalid CSV row 7",
+      "invalid CSV row 8",
+      "invalid CSV row 5",
+      "invalid batch imports no partial rows",
+      "Spring CORS",
+      "Flask CORS",
+      "delete all verification records",
+      "delete missing record returns 404",
+      "data survives abrupt backend restart",
+      "write after backend restart",
+      "database writable health after restart",
+      "real Liu Ao XLS template recognized as empty, not imported",
+      "preview never writes records",
+      "18 report fields previewed with no inferred ODM or annual total",
+      "quarter retained as original text and exact date left empty",
+      "missing name flagged without fabricated name",
+      "different specifications remain two records",
+      "confirmed report persisted with both models",
+      "Spring H2 retains all 18 raw columns",
+      "repeat import skips exact copies",
+      "basic edit preserves raw report metadata",
+      "invalid confirmation imports no partial rows",
+      "CSV backup contains raw report JSON",
+      "CSV backup preview restores original model fields",
+      "report CSV exports tax price and material intact",
+      "report CSV can be previewed again without duplicate headers",
+      "unsupported format returns Chinese JSON error"
+    ]
+  },
+  "browserChecks": [
+    "实际从文件选择器选择项目开发报告 XLS 模板，四表识别为空模板，确认按钮不可用",
+    "CSV开发报告解析3行，有效2行默认选中，缺名行不可选",
+    "预览补填项目名称后可重新勾选",
+    "展开原报告资料保留18项及原始季度和斜杠占位值",
+    "确认导入后新增2条、重复跳过1条，页面由3条到5条",
+    "刷新后5条记录仍在独立数据库中"
+  ],
+  "formalApplication": {
+    "databaseWritable": true,
+    "formalDataBefore": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "formalDataAfter": {
+      "count": 0,
+      "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "formalDataUnchanged": true,
+    "realTemplateRecognized": true,
+    "sourceFileUnchanged": true,
+    "reportExport": 200,
+    "frontend": 200
+  },
+  "frontendBuild": "Vite8.3.5 13 modules exit0 index-I5enEmIS.js",
+  "backendBuild": "Maven offline package BUILD SUCCESS; JUnit skipped; integration separately executed",
+  "shutdown": "cancelled by user; no shutdown scheduled"
+}

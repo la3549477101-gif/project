@@ -1,0 +1,12 @@
+frontend/node_modules/
+frontend/dist/
+logs/
+backend/flask/.venv/
+backend/flask/__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+backend/springboot/target/
+backend/springboot/data/*.mv.db
+backend/springboot/data/*.trace.db
+backend/springboot/data/backups/
