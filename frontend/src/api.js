@@ -15,6 +15,9 @@ async function request(url, options = {}) {
 }
 
 export const api = {
+  reportRows: () => request(`${SPRING}/report/rows`),
+  saveReportRow: (id,body) => request(`${SPRING}/report/rows${id?'/'+id:''}`,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
+  reportWorkbookUrl: `${FLASK}/export/report.xlsx`,
   orders: (filters = {}) => request(`${SPRING}/orders?${new URLSearchParams(Object.entries(filters).filter(([,v]) => v != null && v !== ''))}`),
   order: id => request(`${SPRING}/orders/${id}`),
   previewOrder: body => request(`${SPRING}/orders/preview`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }),

@@ -115,7 +115,7 @@ public class WorkspaceService {
         Object[] beforeText=old.clone(), afterText=after.clone();
         beforeText[0]=companyName((Long)old[0]); afterText[0]=companyName(p.customerId);
         String detail=diff(new String[]{"所属公司","终端客户","ODM集成商","模组厂","项目名称","应用","验证阶段","测试需求数量","预计总需求","预计量产日期"},beforeText,afterText);
-        if(!Objects.equals(oldReport,p.getReportData())) detail+=(detail.isEmpty()?"":"；")+"原开发报告资料已更新";
+        if(!Objects.equals(oldReport,p.getReportData())) detail+=(detail.isEmpty()?"":"；")+reportDifference(oldReport,p.getReportData());
         if(id==null) p.createdAt=Instant.now();
         if(id==null || !detail.isEmpty() || !Objects.equals(oldCompany,p.customerId)) {
             p.updatedAt=Instant.now(); projects.saveAndFlush(p);
@@ -128,6 +128,18 @@ public class WorkspaceService {
     public List<ProjectRecord> importProjects(List<ProjectRecord> input) {
         input.forEach(p->checkCustomer(p.customerId));
         return input.stream().map(p->saveProject(null,p)).toList();
+    }
+    private String reportDifference(String before,String after) {
+        try {
+            tools.jackson.databind.ObjectMapper mapper=new tools.jackson.databind.ObjectMapper();
+            tools.jackson.databind.JsonNode old=before==null?mapper.createObjectNode():mapper.readTree(before);
+            tools.jackson.databind.JsonNode now=after==null?mapper.createObjectNode():mapper.readTree(after);
+            Set<String> keys=new TreeSet<>();keys.addAll(old.path("fields").propertyNames());keys.addAll(now.path("fields").propertyNames());
+            List<String> changes=new ArrayList<>();
+            for(String key:keys) {String a=old.path("fields").path(key).asText(""),b=now.path("fields").path(key).asText("");if(!Objects.equals(a,b)) changes.add(key+"："+display(a)+" → "+display(b));}
+            if(!old.path("reportCategory").asText("").equals(now.path("reportCategory").asText(""))) changes.add("报告分类："+display(old.path("reportCategory").asText(""))+" → "+display(now.path("reportCategory").asText("")));
+            return changes.isEmpty()?"原开发报告资料已更新":String.join("；",changes);
+        } catch(Exception ignored) {return "原开发报告资料已更新";}
     }
     @Transactional
     public Map<String,Integer> assign(List<Long> ids,Long customerId) {

@@ -12,12 +12,16 @@ import time
 import urllib.error
 import urllib.request
 import webbrowser
+import msvcrt
+from contextlib import contextmanager
+from launch_runtime import prepare_runtime, mark_runtime_ready, atomic_json, previous_runtime
 
 APP = Path(__file__).resolve().parent
 TOOLS = APP.parents[2] / '.tools'
 LOGS = APP / 'logs'
 STATE = LOGS / 'services.json'
 URL = 'http://127.0.0.1:5173/'
+RUNTIME = LOGS / 'runtime'
 TICK_OFFSET = 504911232000000000  # .NET epoch -> Windows FILETIME epoch.
 HTTP = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 KERNEL = ctypes.WinDLL('kernel32', use_last_error=True)
@@ -32,14 +36,14 @@ KERNEL.GetExitCodeProcess.restype = wintypes.BOOL
 KERNEL.CloseHandle.argtypes = [wintypes.HANDLE]
 
 
-def specs():
+def specs(runtime=None):
     java = TOOLS / 'jdk-21.0.12.1+1/bin/java.exe'
     node = TOOLS / 'node-v24.22.1-win-x64/node.exe'
     python = APP / 'backend/flask/.venv/Scripts/python.exe'
     return {
-        'springboot': ([str(java), '-jar', str(APP / 'backend/springboot/target/odm-tracker-1.0.0.jar')], APP / 'backend/springboot'),
+        'springboot': ([str(java), '-jar', str(runtime.jar if runtime else APP / 'backend/springboot/target/odm-tracker-1.0.0.jar')], APP / 'backend/springboot'),
         'flask': ([str(python), '-m', 'flask', '--app', 'app', 'run', '--host', '127.0.0.1', '--port', '5000'], APP / 'backend/flask'),
-        'frontend': ([str(node), str(APP / 'frontend/node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--strictPort'], APP / 'frontend'),
+        'frontend': ([str(python), str(APP / 'serve_frontend.py'), '--directory', str(runtime.frontend if runtime else APP / 'frontend/dist'), '--port', '5173'], APP),
     }
 
 
@@ -73,22 +77,32 @@ def matches(service):
     if current is None:
         return False
     expected = specs().get(service['Name'])
-    if not expected or current != (str(service['StartedUtcTicks']), os.path.normcase(os.path.abspath(expected[0][0]))):
-        raise RuntimeError('Process identity changed; refusing to stop an unrelated process.')
+    allowed={os.path.normcase(os.path.abspath(expected[0][0]))} if expected else set()
+    if service['Name']=='frontend': allowed.add(os.path.normcase(os.path.abspath(TOOLS/'node-v24.22.1-win-x64/node.exe')))
+    if not expected or current[0] != str(service['StartedUtcTicks']) or current[1] not in allowed:
+        raise RuntimeError('进程身份与启动记录不一致，已保留该进程，请先检查日志。')
     return True
 
 
 def read_state():
     if not STATE.exists():
         return []
-    raw = STATE.read_bytes()
-    text = raw.decode('utf-16') if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else raw.decode('utf-8-sig')
-    data = json.loads(text)
-    return data if isinstance(data, list) else [data]
+    try:
+        raw = STATE.read_bytes()
+        text = raw.decode('utf-16') if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else raw.decode('utf-8-sig')
+        data = json.loads(text)
+        rows=data if isinstance(data,list) else [data]
+        names=set()
+        for row in rows:
+            if not isinstance(row,dict) or row.get('Name') not in specs() or row['Name'] in names or not isinstance(row.get('ProcessId'),int) or row['ProcessId']<=0 or not str(row.get('StartedUtcTicks','')).isdigit():raise ValueError('invalid state')
+            names.add(row['Name'])
+        return rows
+    except (OSError,ValueError,UnicodeError,TypeError) as exc:
+        raise RuntimeError('启动记录无法读取，已保留日志且未停止任何未知进程。请检查logs/services.json。') from exc
 
 
 def stop_services(services):
-    for service in services:
+    for service in reversed(services):
         if not matches(service):
             continue
         result = subprocess.run([str(Path(os.environ['SystemRoot']) / 'System32/taskkill.exe'),
@@ -105,7 +119,40 @@ def stop_services(services):
 def stop():
     stop_services(read_state())
     STATE.unlink(missing_ok=True)
-    print('Services stopped. Project data retained.')
+    print('应用已停止，项目数据已保留。')
+
+
+@contextmanager
+def operation_lock():
+    LOGS.mkdir(exist_ok=True)
+    with (LOGS/'launcher.lock').open('a+b') as lock:
+        if lock.tell()==0:lock.write(b'0');lock.flush()
+        lock.seek(0)
+        try:msvcrt.locking(lock.fileno(),msvcrt.LK_NBLCK,1)
+        except OSError as exc:raise RuntimeError('应用正在启动、停止或更新，请稍等片刻再操作。') from exc
+        try:yield
+        finally:lock.seek(0);msvcrt.locking(lock.fileno(),msvcrt.LK_UNLCK,1)
+
+
+def healthy():
+    try:
+        with HTTP.open('http://127.0.0.1:8080/api/health',timeout=3) as response:
+            if not json.load(response).get('databaseWritable'):return False,'数据库暂时不可写，请检查目录权限或占用情况。'
+        with HTTP.open('http://127.0.0.1:5000/api/summary',timeout=3) as response:
+            if 'projectCount' not in json.load(response):return False,'数据辅助服务响应异常。'
+        with HTTP.open(URL+'__app_health__',timeout=3) as response:
+            if json.load(response).get('app')!='odm-tracker-frontend':return False,'网页服务响应异常。'
+        with HTTP.open(URL,timeout=3) as response:
+            if b'assets/' not in response.read():return False,'网页资源未准备完成。'
+        return True,''
+    except (OSError,ValueError) as exc:return False,str(exc)
+
+
+def status():
+    services=read_state();active=[matches(service) for service in services]
+    ok,message=healthy() if len(services)==3 and all(active) else (False,'有服务未运行，可再次双击原启动快捷方式自动恢复。')
+    print(('应用正常：' if ok else '应用尚未就绪：')+(URL if ok else message))
+    return ok
 
 
 def start(no_browser):
@@ -114,28 +161,51 @@ def start(no_browser):
     if old:
         active = [matches(service) for service in old]
         if any(active):
-            if all(active):
-                with HTTP.open('http://127.0.0.1:8080/api/health', timeout=5) as response:
-                    if not json.load(response).get('databaseWritable'):
-                        raise RuntimeError('Database is not writable. Check the data directory permissions.')
-                print('Already running: ' + URL)
-                if not no_browser:
-                    webbrowser.open(URL)
+            ok,message=healthy() if len(old)==3 and all(active) else (False,'部分服务已停止')
+            if ok:
+                print('应用已在运行：'+URL)
+                if not no_browser:webbrowser.open(URL)
                 return
-            raise RuntimeError('Some services are still running. Run stop-app.cmd first.')
-        STATE.unlink()
-    for port in (8080, 5000, 5173):
-        with socket.socket() as probe:
-            probe.bind(('127.0.0.1', port))
-    definitions = specs()
-    for command, _ in definitions.values():
-        if not Path(command[0]).is_file():
-            raise RuntimeError('Missing runtime: ' + command[0])
-    for required in (APP / 'backend/springboot/target/odm-tracker-1.0.0.jar', APP / 'frontend/node_modules/vite/bin/vite.js'):
-        if not required.is_file():
-            raise RuntimeError('Missing build or dependencies: ' + str(required))
+            print('正在恢复未就绪的应用服务…')
+            stop_services(old)
+        STATE.unlink(missing_ok=True)
+    for port in (8080,5000,5173):
+        try:
+            with socket.socket() as probe:probe.bind(('127.0.0.1',port))
+        except OSError as exc:raise RuntimeError(f'端口 {port} 已被其他程序占用，未关闭未知程序。请检查后重试。') from exc
+    runtime=prepare_runtime(APP/'backend/springboot/target/odm-tracker-1.0.0.jar',APP/'frontend/dist',RUNTIME)
+    if runtime.warning:print(runtime.warning)
+    launch_with_recovery(runtime)
+    print('应用已启动：'+URL)
+    if not no_browser:webbrowser.open(URL)
+
+
+def launch_with_recovery(runtime):
+    previous=previous_runtime(RUNTIME)
+    try:
+        launch_runtime(runtime)
+    except Exception as exc:
+        if previous is None or (previous.jar==runtime.jar and previous.frontend==runtime.frontend):raise
+        # launch_runtime cleans up its own processes before returning an error.
+        # Preserve the failed attempt's logs before the one permitted retry.
+        failure=LOGS/('failed-start-'+str(time.time_ns()))
+        failure.mkdir()
+        for name in specs():
+            for suffix in ('.out.log','.err.log'):
+                path=LOGS/(name+suffix)
+                if path.exists():path.replace(failure/path.name)
+        print('新版本启动失败，正在恢复上一次正常运行的版本。原因：'+str(exc))
+        try:launch_runtime(previous)
+        except Exception as recovery:
+            raise RuntimeError('恢复启动仍未成功，请查看logs目录中的启动日志。新版本原因：'+str(exc)+'；恢复原因：'+str(recovery)) from recovery
+
+
+def launch_runtime(runtime):
+    definitions=specs(runtime)
+    for command,_ in definitions.values():
+        if not Path(command[0]).is_file():raise RuntimeError('运行环境缺失：'+command[0])
     env = dict(os.environ)
-    env['PATH'] = os.pathsep.join([str(Path(definitions[name][0][0]).parent) for name in ('frontend', 'springboot', 'flask')] + [env.get('PATH', '')])
+    env['PATH'] = os.pathsep.join([str(Path(definitions[name][0][0]).parent) for name in ('springboot', 'flask')] + [env.get('PATH', '')])
     env['JAVA_HOME'] = str(TOOLS / 'jdk-21.0.12.1+1')
     env['SPRING_API'] = 'http://127.0.0.1:8080/api'
     env['FLASK_DEBUG'] = '0'
@@ -154,32 +224,18 @@ def start(no_browser):
             if info is None:
                 raise RuntimeError('Service exited: ' + name)
             started.append({'Name': name, 'ProcessId': child.pid, 'StartedUtcTicks': info[0]})
-            STATE.write_text(json.dumps(started, indent=2), encoding='utf-8')
+            atomic_json(STATE,started)
         deadline = time.monotonic() + 90
         last_error = ''
         while time.monotonic() < deadline:
             if any(child.poll() is not None for child in children):
                 raise RuntimeError('A service exited. See logs in ' + str(LOGS))
-            try:
-                for url in ('http://127.0.0.1:8080/api/health', 'http://127.0.0.1:5000/api/summary', URL):
-                    with HTTP.open(url, timeout=10) as response:
-                        if url.endswith('/health') and not json.load(response).get('databaseWritable'):
-                            raise RuntimeError('Database is not writable.')
-                        response.read()
-                print('Ready: ' + URL)
-                if not no_browser:
-                    webbrowser.open(URL)
+            ok,last_error=healthy()
+            if ok:
+                mark_runtime_ready(runtime,RUNTIME)
                 return
-            except urllib.error.HTTPError as exception:
-                if exception.code == 503 and exception.url.endswith('/health'):
-                    message = json.loads(exception.read().decode('utf-8')).get('message', 'Database unavailable.')
-                    raise RuntimeError(message) from exception
-                last_error = str(exception)
-                time.sleep(.5)
-            except (urllib.error.URLError, TimeoutError, ConnectionError) as exception:
-                last_error = str(exception)
-                time.sleep(.5)
-        raise RuntimeError('Startup timed out: ' + last_error)
+            time.sleep(.5)
+        raise RuntimeError('启动超时：'+last_error+'。请查看logs目录，或再次启动尝试恢复。')
     except BaseException:
         stop_services(started)
         STATE.unlink(missing_ok=True)
@@ -188,11 +244,15 @@ def start(no_browser):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=('start', 'stop'))
+    parser.add_argument('action', choices=('start', 'stop', 'restart', 'status'))
     parser.add_argument('--no-browser', action='store_true')
     options = parser.parse_args()
     try:
-        start(options.no_browser) if options.action == 'start' else stop()
+        with operation_lock():
+            if options.action=='status':sys.exit(0 if status() else 2)
+            elif options.action=='restart':stop();start(options.no_browser)
+            elif options.action=='start':start(options.no_browser)
+            else:stop()
     except Exception as exception:
         print('Error: ' + str(exception), file=sys.stderr)
         sys.exit(1)

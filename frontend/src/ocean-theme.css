@@ -172,6 +172,27 @@ tbody tr:hover td { background: #195779; }
 .projects-table tbody .project-frozen { z-index:2; background:var(--ocean-surface); }
 .projects-table thead .project-frozen { z-index:4; background:var(--ocean-raised); }
 .projects-table tbody tr:hover .project-frozen { background:#195779; }
+.report-table { width:calc(var(--project-selection-width) + var(--project-company-width) + var(--project-name-width) + var(--project-terminal-width) + var(--report-scroll-width)); }
+.report-category-tabs { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:14px 22px; border-bottom:1px solid var(--ocean-line); }
+.report-category-tabs button { border:1px solid var(--ocean-line); background:transparent; color:var(--ocean-muted); border-radius:7px; padding:8px 13px; font:inherit; font-size:12px; cursor:pointer; }
+.report-category-tabs button.active { color:var(--ocean-accent); background:rgba(103,198,236,.17); border-color:var(--ocean-line-strong); }
+.report-category-tabs span { margin-left:auto; font-size:11px; color:var(--ocean-muted); }
+.report-ledger-help { color:var(--ocean-muted); font-size:11px; line-height:1.8; padding:0 22px; }
+.report-select-edit { display:flex; flex-direction:column; align-items:center; gap:7px; }
+.report-select-edit .report-inline-edit { min-width:0; width:28px; padding:3px 0; font-size:11px; line-height:1.4; white-space:nowrap; color:var(--ocean-accent); border:1px solid var(--ocean-line); border-radius:4px; background:rgba(138,225,246,.08); }
+.report-select-edit .report-inline-edit:hover { background:rgba(138,225,246,.2); }
+.report-select-edit .report-inline-edit:focus-visible { outline:2px solid var(--ocean-accent); outline-offset:2px; }
+.report-table td { vertical-align:top; line-height:1.7; }
+.report-table td small { display:block; font-size:10px; white-space:normal; overflow-wrap:anywhere; }
+.report-table .report-long-text { white-space:normal; overflow-wrap:anywhere; }
+.report-long-text > span { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
+.report-row-actions { white-space:normal; }
+.report-row-actions .text-button { margin:0 9px 8px 0; padding:0; }
+.report-edit-form { display:flex; flex-direction:column; min-height:0; }
+.report-edit-form .error { margin:16px 22px 0; }
+.report-edit-form textarea { color:var(--ocean-text); background:var(--ocean-input); border:1px solid var(--ocean-line); border-radius:8px; padding:10px; font:inherit; resize:vertical; }
+.report-important { display:flex; align-items:center; gap:10px; }
+.report-edit-form .report-important input { width:16px; height:16px; flex:0 0 16px; }
 @media (max-width:760px) {
   .project-table-wrap { --project-selection-width:32px; --project-company-width:104px; --project-name-width:120px; --project-terminal-width:84px; }
   .projects-table th, .projects-table td { padding-left:10px; padding-right:10px; }

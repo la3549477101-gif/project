@@ -9,6 +9,7 @@ from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 from import_routes import register_import_routes
 from customer_folders import register_customer_folders
+from report_export import register_report_export
 
 app = Flask(__name__)
 # Expanded Excel drafts contain both basic fields and original report values.
@@ -17,6 +18,7 @@ app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
 CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173", os.getenv('ODM_FRONTEND_ORIGIN', 'http://127.0.0.1:5173')]}})
 
 SPRING_API = os.getenv("SPRING_API", "http://localhost:8080/api")
+register_report_export(app, SPRING_API)
 CSV_HEADERS = [
     "终端客户", "ODM集成商", "模组厂", "项目名称", "应用", "目前阶段",
     "测试阶段需求数量", "项目预计总需求量", "预计MP日期",

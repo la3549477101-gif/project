@@ -13,6 +13,9 @@ public class ProjectDetail {
     public String specification;
     public String productLine;
     public String owner;
+    public String reportDate;
+    public String caseStatus;
+    public String reportCategory;
     public String businessStage;
     @Column(precision=19,scale=6) @JsonFormat(shape=JsonFormat.Shape.STRING) public BigDecimal quotePrice;
     public String currency;

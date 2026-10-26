@@ -7,8 +7,13 @@ import CustomerProfile from './CustomerProfile.vue'
 import ProjectBusiness from './ProjectBusiness.vue'
 import WeeklyUpdates from './WeeklyUpdates.vue'
 import OrdersWorkspace from './OrdersWorkspace.vue'
+import ReportLedger from './ReportLedger.vue'
+import ReportRowEditor from './ReportRowEditor.vue'
 
 const projects = ref([])
+const reportRows = ref([])
+const reportEditorOpen = ref(false)
+const reportEditing = ref(null)
 const businessProject = ref(null)
 const customers = ref([])
 const customerProfileGroups = ref([])
@@ -43,24 +48,18 @@ const toast = ref('')
 let toastTimer
 const emptyForm = () => ({ customerId: null, terminalCustomer: '', odmIntegrator: '', moduleFactory: '', projectName: '', application: '', stage: '', testDemandQuantity: '', estimatedTotalDemand: '', expectedMpDate: '', reportData: null })
 const form = reactive(emptyForm())
-const columns = [
-  ['customerName', '采购客户公司'], ['projectName', '项目名称'],
-  ['terminalCustomer', '终端客户'], ['odmIntegrator', 'ODM（原始设计制造商）集成商'], ['moduleFactory', '模组厂'], ['application', '应用'], ['stage', '测试验证阶段'], ['testDemandQuantity', '测试阶段需求数量'], ['estimatedTotalDemand', '项目预计总需求量'], ['expectedMpDate', '预计 MP（量产）日期'],
-]
-const frozenColumns = { customerName: 'project-frozen project-company-column', projectName: 'project-frozen project-name-column', terminalCustomer: 'project-frozen project-terminal-column' }
-const stageLabels = {
-  EVT: 'EVT（工程验证测试）',
-  DVT: 'DVT（设计验证测试）',
-  PVT: 'PVT（生产验证测试）',
-}
 const visibleProjects = computed(() => projects.value.filter(p => {
   if (view.value === 'company' && p.customerId !== companyId.value) return false
   if (view.value === 'unassigned' && p.customerId != null) return false
   if (view.value === 'priority' && !p.important) return false
   if (stageFilter.value && p.stage !== stageFilter.value) return false
   const query = search.value.trim().toLowerCase()
-  return !query || [p.customerName,customerCandidate(p),p.terminalCustomer,p.odmIntegrator,p.moduleFactory,p.projectName,p.application].some(v => v?.toLowerCase().includes(query))
+  return !query || [p.customerName,customerCandidate(p),p.terminalCustomer,p.odmIntegrator,p.moduleFactory,p.projectName,p.application,...reportRows.value.filter(r=>r.projectId===p.id).flatMap(r=>Object.values(r.fields))].some(v => v?.toLowerCase().includes(query))
 }))
+const visibleReportRows = computed(() => { const ids=new Set(visibleProjects.value.map(p=>p.id));return reportRows.value.filter(r=>ids.has(r.projectId)) })
+function editReport(row=null){reportEditing.value=row;reportEditorOpen.value=true}
+async function savedReport(){reportEditorOpen.value=false;await refresh();showToast('项目报告行已保存')}
+function selectReportProjects(ids,checked){const next=new Set(selectedIds.value);ids.forEach(id=>checked?next.add(id):next.delete(id));selectedIds.value=[...next]}
 function customerCandidate(project) {
   try {
     const raw = typeof project.reportData === 'string' ? JSON.parse(project.reportData) : project.reportData
@@ -96,7 +95,7 @@ async function refresh() {
   loading.value = true
   error.value = ''
   try {
-    const [rows, companies, schema] = await Promise.allSettled([api.projects(), api.customers(), api.customerProfileSchema()])
+    const [rows, companies, schema, reports] = await Promise.allSettled([api.projects(), api.customers(), api.customerProfileSchema(), api.reportRows()])
     if (requestId !== refreshId) return
     const messages = []
     if (rows.status === 'fulfilled') {
@@ -109,6 +108,8 @@ async function refresh() {
     else { customers.value = []; selectedIds.value = []; messages.push(`客户读取失败：${companies.reason.message}`) }
     if (schema.status === 'fulfilled') customerProfileGroups.value = schema.value
     else { customerProfileGroups.value = []; messages.push(`客户字段读取失败：${schema.reason.message}`) }
+    if(reports.status === 'fulfilled') reportRows.value=reports.value
+    else {reportRows.value=[];messages.push(`报告读取失败：${reports.reason.message}`)}
     revision.value++
     error.value = messages.join('；')
   } catch (err) {
@@ -177,13 +178,7 @@ async function assignSelected() {
   finally { assigning.value = false }
 }
 
-function openCreate() {
-  formError.value = ''
-  editingId.value = null
-  Object.assign(form, emptyForm())
-  if (view.value === 'company') form.customerId = companyId.value
-  modalOpen.value = true
-}
+function openCreate() { editReport() }
 
 function openEdit(project) {
   formError.value = ''
@@ -299,7 +294,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
         <button class="button" @click="editCustomer()">＋ 新建客户</button>
         <button class="button" title="从 Excel（.xls / .xlsx）或 CSV（逗号分隔值）文件导入已填写的项目数据" @click="importOpen = true">导入项目数据</button>
         <a class="button" :href="api.exportUrl" title="导出全部项目及原始报告资料，格式为 CSV（逗号分隔值），可用 Excel 打开">导出项目数据</a>
-        <a class="button" :href="api.exportReportUrl" title="仅导出含原开发报告资料的记录，格式为 CSV（逗号分隔值），可用 Excel 打开；备份全部项目请使用“导出项目数据”">导出开发报告</a>
+        <a class="button" :href="api.reportWorkbookUrl" title="导出所有客户的项目报告行，按原18列分为开发、成交、EOL和重点项目4张Excel工作表，不限当前筛选">导出项目表（Excel）</a>
         <button class="button primary" @click="openCreate">＋ 新建项目</button>
       </div>
     </header>
@@ -326,13 +321,13 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
     <OrdersWorkspace v-if="view === 'orders'" :customers="customers" :projects="projects" :revision="revision" @changed="revision++" />
     <section v-if="projectView" class="stats" aria-label="当前项目列表概览">
       <article class="stat"><span>项目总数</span><strong>{{ summary?.projectCount ?? '—' }}</strong></article>
-      <article class="stat"><span>测试阶段需求总量</span><strong>{{ summary ? Number(summary.testDemandTotal).toLocaleString() : '—' }}<small>台</small></strong></article>
-      <article class="stat"><span>项目预计总需求量</span><strong>{{ summary ? Number(summary.estimatedDemandTotal).toLocaleString() : '—' }}<small>台</small></strong></article>
-      <article class="stat"><span>PVT（生产验证测试）阶段项目</span><strong>{{ summary?.pvtCount ?? '—' }}</strong></article>
+      <article class="stat"><span>报告明细数</span><strong>{{ visibleReportRows.length }}<small>条</small></strong></article>
+      <article class="stat"><span>重点项目数</span><strong>{{ visibleProjects.filter(p=>p.important).length }}<small>个</small></strong></article>
+      <article class="stat"><span>客户公司数</span><strong>{{ customers.length }}</strong></article>
     </section>
 
     <section v-if="projectView" class="panel">
-      <div class="panel-heading"><div><span class="section-index">01 / 项目</span><h2>{{ view === 'company' ? '该公司项目' : view === 'unassigned' ? '未归属项目' : view === 'priority' ? '重点项目' : '项目总览' }}</h2></div><span class="panel-hint">上方统计对应当前项目列表</span></div>
+      <div class="panel-heading"><div><span class="section-index">01 / 项目</span><h2>{{ view === 'company' ? '该公司项目' : view === 'unassigned' ? '未归属项目' : view === 'priority' ? '重点项目' : '项目开发表' }}</h2></div><span class="panel-hint">上方统计对应当前项目列表</span></div>
       <p v-if="view === 'unassigned'" class="unassigned-help">原表客户仅供核对。确认后先新建客户公司，再搜索原表客户、勾选对应项目并归属到公司。</p>
       <div class="toolbar">
         <div class="filters"><input v-model="search" class="field search" type="search" placeholder="搜索客户、集成商、项目名称…" :disabled="bulkBusy"><select v-model="stageFilter" class="field stage-filter" :disabled="bulkBusy"><option value="">全部测试阶段</option><option value="EVT" title="工程验证测试阶段">EVT（工程验证）</option><option value="DVT" title="设计验证测试阶段">DVT（设计验证）</option><option value="PVT" title="生产验证测试阶段">PVT（生产验证）</option></select></div>
@@ -342,15 +337,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
         <span>已选择 <strong>{{ selectedIds.length }}</strong> 个项目</span>
         <div class="assignment-actions"><select v-model="assignTarget" class="field" :disabled="bulkBusy" aria-label="选择已勾选项目所属公司"><option value="__choose__" disabled>选择所属公司</option><option value="">暂不归属公司</option><option v-for="c in customers" :key="c.id" :value="String(c.id)">{{ c.fullName }}</option></select><button class="button" :disabled="bulkBusy || assignTarget === '__choose__'" @click="assignSelected">{{ assigning ? '正在归属…' : '归属到公司' }}</button><button class="button danger-outline" :disabled="bulkBusy" @click="removeSelectedProjects">{{ deletingSelected ? '正在删除…' : '删除已选项目' }}</button><button class="text-button" :disabled="bulkBusy" @click="clearSelection">取消选择</button></div>
       </div>
-      <div class="table-wrap project-table-wrap"><table class="projects-table"><colgroup><col class="selection-column"><col v-for="[key] in columns" :key="key" :class="frozenColumns[key] || 'project-data-column'"><col class="project-actions-column"></colgroup><thead><tr><th class="selection-column project-frozen"><input class="project-checkbox" type="checkbox" aria-label="全选当前显示项目" :checked="allVisibleSelected" :indeterminate="someVisibleSelected" :disabled="!visibleProjects.length || bulkBusy" @change="toggleVisibleSelection($event.target.checked)"></th><th v-for="[key, label] in columns" :key="key" :class="frozenColumns[key]">{{ label }}</th><th>操作</th></tr></thead>
-        <tbody><tr v-for="p in visibleProjects" :key="p.id"><td class="selection-column project-frozen"><input class="project-checkbox" type="checkbox" :aria-label="`选择项目 ${p.projectName}`" :checked="selectedIds.includes(p.id)" :disabled="bulkBusy" @change="toggleProjectSelection(p.id, $event.target.checked)"></td><td v-for="[key] in columns" :key="key" :class="frozenColumns[key]" :title="frozenColumns[key] ? (p[key] || undefined) : undefined">
-          <span v-if="key === 'stage' && p[key]" class="stage" :class="p[key]">{{ stageLabels[p[key]] || p[key] }}</span>
-          <template v-else-if="key === 'customerName' && !p.customerId"><span class="muted">未归属</span><small v-if="customerCandidate(p)" class="customer-candidate">原表：{{ customerCandidate(p) }}（待确认）</small></template>
-          <template v-else-if="key === 'projectName'"><strong>{{ p[key] || '—' }}</strong><span v-if="p.reportData" class="source-badge">开发报告</span></template>
-          <span v-else>{{ p[key] == null || p[key] === '' ? '—' : p[key] }}</span>
-        </td><td class="row-actions"><button class="text-button priority-toggle" :class="{ 'is-important': p.important }" :aria-pressed="!!p.important" :disabled="bulkBusy" @click="togglePriority(p)">{{ p.important ? '★ 取消重点' : '☆ 标记重点' }}</button><button class="text-button" :disabled="bulkBusy" @click="businessProject = p">规格与跟进</button><button class="text-button" :disabled="bulkBusy" @click="openEdit(p)">编辑</button><button class="text-button danger" :disabled="bulkBusy" @click="removeProject(p)">删除</button></td></tr>
-        <tr v-if="!visibleProjects.length"><td class="empty" :colspan="columns.length + 2"><div class="empty-orbit" aria-hidden="true">＋</div><strong>{{ loading ? '正在读取项目' : view === 'priority' ? '还没有标记为重点的项目' : '还没有项目记录' }}</strong><span>{{ view === 'priority' ? '在全部项目或公司项目中点击“标记重点”，即可集中查看。' : '新建项目，或点击“导入项目数据”选择已填写的数据文件。' }}</span></td></tr></tbody>
-      </table></div>
+      <ReportLedger :key="view+'-'+companyId" :rows="visibleReportRows" :projects="projects" :selected-ids="selectedIds" :busy="bulkBusy" @edit="editReport" @business="businessProject=$event" @basic="openEdit" @priority="togglePriority" @remove="removeProject" @select="toggleProjectSelection" @select-visible="selectReportProjects" @clear-selection="clearSelection" />
       <footer class="footer"><span>项目资料保存到本机。</span><span>“导出项目数据”导出全部项目，不包含客户完整档案和变更历史</span></footer>
     </section>
     <OrdersWorkspace v-if="view === 'company' && currentCompany" :key="'orders-' + companyId" :customer-id="companyId" :customers="customers" :projects="projects" :revision="revision" @changed="revision++" />
@@ -371,6 +358,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
         </form>
       </section>
     </div>
+    <ReportRowEditor v-if="reportEditorOpen" :row="reportEditing" :customers="customers" :default-customer-id="view === 'company' ? companyId : null" @close="reportEditorOpen=false" @saved="savedReport" />
     <ProjectBusiness v-if="businessProject" :key="businessProject.id" :project="businessProject" @close="businessProject = null" @changed="refresh" />
     <CustomerDialog v-if="customerOpen" :customer="editingCustomer" :customers="customers" :groups="customerProfileGroups" @close="customerOpen = false" @saved="savedCustomer" />
     <ImportDialog v-if="importOpen" :customers="customers" :default-customer-id="view === 'company' ? companyId : null" @close="importOpen = false" @imported="imported" />

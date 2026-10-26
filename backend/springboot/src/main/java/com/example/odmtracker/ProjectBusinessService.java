@@ -49,8 +49,8 @@ public class ProjectBusinessService {
         return result.signum()==0?BigDecimal.ZERO:result;
     }
     private Object number(BigDecimal value) { return value==null?null:value.stripTrailingZeros().toPlainString(); }
-    private Object[] values(ProjectDetail d) { return new Object[]{d.materialModel,d.specification,d.productLine,d.owner,d.businessStage,number(d.quotePrice),d.currency,d.quantityUnit,d.priceTerms,number(d.estimatedAnnualQuantity),number(d.estimatedAnnualRevenue),d.expectedMpText,d.competitor,number(d.competitorPrice),d.statusNote,d.notes}; }
-    private static final String[] LABELS={"材料型号","成品规格","产品线","负责人","业务阶段","当前报价","币种","数量单位","计价与含税说明","预估年用量","预估年营业额","预估量产时间","竞争对手","竞争对手单价","当前业务说明","备注"};
+    private Object[] values(ProjectDetail d) { return new Object[]{d.materialModel,d.specification,d.productLine,d.owner,d.businessStage,number(d.quotePrice),d.currency,d.quantityUnit,d.priceTerms,number(d.estimatedAnnualQuantity),number(d.estimatedAnnualRevenue),d.expectedMpText,d.competitor,number(d.competitorPrice),d.statusNote,d.notes,d.reportDate,d.caseStatus,d.reportCategory}; }
+    private static final String[] LABELS={"材料型号","成品规格","产品线","负责人","业务阶段","当前报价","币种","数量单位","计价与含税说明","预估年用量","预估年营业额","预估量产时间","竞争对手","竞争对手单价","当前业务说明","备注","报告日期","案子状况","报告分类"};
     private static String display(Object value) { return value==null||value.toString().isEmpty()?"（空）":value.toString(); }
     private String diff(Object[] old,Object[] current) {
         List<String> result=new ArrayList<>();
@@ -73,6 +73,9 @@ public class ProjectBusinessService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,"该型号和规格已存在（含已归档明细），请编辑或恢复原明细");
         d.projectId=projectId;d.materialModel=model;d.specification=spec;
         d.productLine=text(input.productLine,255,"产品线");d.owner=text(input.owner,255,"负责人");d.businessStage=stage(input.businessStage);
+        d.reportDate=text(input.reportDate,100,"报告日期");d.caseStatus=text(input.caseStatus,255,"案子状况");
+        d.reportCategory=text(input.reportCategory,10,"报告分类");
+        if(!d.reportCategory.isEmpty()&&!List.of("开发","成交","EOL").contains(d.reportCategory)) throw bad("报告分类无效");
         d.quotePrice=decimal(input.quotePrice,"当前报价");d.currency=text(input.currency,30,"币种");d.quantityUnit=text(input.quantityUnit,30,"数量单位");
         d.priceTerms=text(input.priceTerms,255,"计价与含税说明");d.estimatedAnnualQuantity=decimal(input.estimatedAnnualQuantity,"预估年用量");
         d.estimatedAnnualRevenue=decimal(input.estimatedAnnualRevenue,"预估年营业额");d.expectedMpText=text(input.expectedMpText,100,"预估量产时间");
