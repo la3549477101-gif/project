@@ -16,6 +16,7 @@ async function request(url, options = {}) {
 
 export const api = {
   customers: () => request(`${SPRING}/customers`),
+  customerProfileSchema: () => request(`${SPRING}/customers/profile-schema`),
   createCustomer: (customer) => request(`${SPRING}/customers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(customer) }),
   updateCustomer: (id, customer) => request(`${SPRING}/customers/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(customer) }),
   retryFolder: (id) => request(`${SPRING}/customers/${id}/folder/retry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),

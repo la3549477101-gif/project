@@ -3,10 +3,12 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { api } from './api'
 import ImportDialog from './ImportDialog.vue'
 import CustomerDialog from './CustomerDialog.vue'
+import CustomerProfile from './CustomerProfile.vue'
 import WeeklyUpdates from './WeeklyUpdates.vue'
 
 const projects = ref([])
 const customers = ref([])
+const customerProfileGroups = ref([])
 const view = ref('customers')
 const companyId = ref(null)
 const companySearch = ref('')
@@ -87,7 +89,7 @@ async function refresh() {
   loading.value = true
   error.value = ''
   try {
-    const [rows, companies] = await Promise.allSettled([api.projects(), api.customers()])
+    const [rows, companies, schema] = await Promise.allSettled([api.projects(), api.customers(), api.customerProfileSchema()])
     if (requestId !== refreshId) return
     const messages = []
     if (rows.status === 'fulfilled') {
@@ -98,6 +100,8 @@ async function refresh() {
     else { projects.value = []; selectedIds.value = []; messages.push(`项目读取失败：${rows.reason.message}`) }
     if (companies.status === 'fulfilled') customers.value = companies.value
     else { customers.value = []; selectedIds.value = []; messages.push(`客户读取失败：${companies.reason.message}`) }
+    if (schema.status === 'fulfilled') customerProfileGroups.value = schema.value
+    else { customerProfileGroups.value = []; messages.push(`客户字段读取失败：${schema.reason.message}`) }
     revision.value++
     error.value = messages.join('；')
   } catch (err) {
@@ -295,6 +299,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
     <section v-if="view === 'company' && currentCompany" class="panel customer-profile">
       <div class="panel-heading"><div><span class="section-index">公司 / 客户资料</span><h2>{{ currentCompany.fullName }}</h2></div><button class="button" @click="editCustomer(currentCompany)">编辑客户资料</button></div>
       <dl class="customer-facts"><div><dt>简称</dt><dd>{{ currentCompany.shortName || '待补充' }}</dd></div><div><dt>联系人</dt><dd>{{ currentCompany.contactName || '待补充' }}</dd></div><div><dt>联系方式</dt><dd>{{ currentCompany.contactDetails || '待补充' }}</dd></div><div class="wide"><dt>备注</dt><dd>{{ currentCompany.notes || '暂无备注' }}</dd></div><div class="wide"><dt>桌面客户文件夹 · {{ currentCompany.folderStatus === 'READY' ? '已建立' : '待创建' }}</dt><dd class="folder-path">{{ currentCompany.archivePath || currentCompany.folderError || '保存客户后自动创建' }}</dd></div></dl>
+      <CustomerProfile :customer="currentCompany" :groups="customerProfileGroups" />
       <p v-if="currentCompany.folderStatus === 'FAILED' && currentCompany.folderError" class="notice profile-actions">{{ currentCompany.folderError }}</p>
       <div class="profile-actions"><button class="button" :disabled="folderBusy" @click="retryFolder">{{ folderBusy ? '正在检查…' : currentCompany.folderStatus === 'READY' ? '检查客户文件夹' : '重试创建文件夹' }}</button><button class="button primary" @click="openCreate">＋ 新建该公司项目</button></div>
     </section>
@@ -345,7 +350,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
         </form>
       </section>
     </div>
-    <CustomerDialog v-if="customerOpen" :customer="editingCustomer" :customers="customers" @close="customerOpen = false" @saved="savedCustomer" />
+    <CustomerDialog v-if="customerOpen" :customer="editingCustomer" :customers="customers" :groups="customerProfileGroups" @close="customerOpen = false" @saved="savedCustomer" />
     <ImportDialog v-if="importOpen" :customers="customers" :default-customer-id="view === 'company' ? companyId : null" @close="importOpen = false" @imported="imported" />
     <div v-if="toast" class="toast" role="status">{{ toast }}</div>
   </main>

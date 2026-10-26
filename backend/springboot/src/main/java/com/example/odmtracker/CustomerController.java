@@ -8,6 +8,7 @@ public class CustomerController {
     private final WorkspaceService workspace; private final CustomerArchiveService archive;
     public CustomerController(WorkspaceService workspace,CustomerArchiveService archive) {this.workspace=workspace;this.archive=archive;}
     @GetMapping public List<CustomerRecord> list(){return workspace.customers();}
+    @GetMapping("/profile-schema") public List<CustomerProfile.Group> profileSchema(){return CustomerProfile.GROUPS;}
     @GetMapping("/{id}") public CustomerRecord get(@PathVariable Long id){return workspace.customer(id);}
     @PostMapping @ResponseStatus(HttpStatus.CREATED)
     public CustomerRecord create(@RequestBody CustomerRecord input){return archive.ensure(workspace.saveCustomer(null,input).id);}

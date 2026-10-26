@@ -31,7 +31,14 @@ public class WorkspaceService {
         return s;
     }
     private String[] customerValues(CustomerRecord c) {
-        return new String[]{c.fullName,c.shortName,c.contactName,c.contactDetails,c.notes};
+        List<String> values=new ArrayList<>(List.of(comparable(c.fullName),comparable(c.shortName),comparable(c.contactName),comparable(c.contactDetails),comparable(c.notes)));
+        CustomerProfile.fields().forEach(f->values.add(c.profile==null?"":comparable(c.profile.get(f.key()))));
+        return values.toArray(String[]::new);
+    }
+    private String[] customerLabels() {
+        List<String> labels=new ArrayList<>(List.of("公司全称","简称","联系人","联系方式","备注"));
+        CustomerProfile.fields().forEach(f->labels.add(f.label()));
+        return labels.toArray(String[]::new);
     }
     @Transactional
     public CustomerRecord saveCustomer(Long id, CustomerRecord input) {
@@ -44,10 +51,13 @@ public class WorkspaceService {
         });
         CustomerRecord c=id==null ? new CustomerRecord() : customer(id);
         String[] old=customerValues(c);
+        Map<String,String> profile=CustomerProfile.merge(c.profile,input.profile);
         c.fullName=full; c.normalizedName=normalized;
         c.shortName=text(input.shortName,255,"简称"); c.contactName=text(input.contactName,255,"联系人");
         c.contactDetails=text(input.contactDetails,255,"联系方式"); c.notes=text(input.notes,4000,"备注");
-        String detail=diff(new String[]{"公司全称","简称","联系人","联系方式","备注"}, old, customerValues(c));
+        if(c.profile==null) c.profile=new LinkedHashMap<>();
+        c.profile.clear(); c.profile.putAll(profile);
+        String detail=diff(customerLabels(), old, customerValues(c));
         if(id==null) { c.createdAt=Instant.now(); c.folderStatus="PENDING"; }
         if(id==null || !detail.isEmpty()) {
             c.updatedAt=Instant.now(); customers.saveAndFlush(c);
