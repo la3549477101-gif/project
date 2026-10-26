@@ -44,9 +44,10 @@ let toastTimer
 const emptyForm = () => ({ customerId: null, terminalCustomer: '', odmIntegrator: '', moduleFactory: '', projectName: '', application: '', stage: '', testDemandQuantity: '', estimatedTotalDemand: '', expectedMpDate: '', reportData: null })
 const form = reactive(emptyForm())
 const columns = [
-  ['customerName', '采购客户公司'],
-  ['terminalCustomer', '终端客户'], ['odmIntegrator', 'ODM（原始设计制造商）集成商'], ['moduleFactory', '模组厂'], ['projectName', '项目名称'], ['application', '应用'], ['stage', '测试验证阶段'], ['testDemandQuantity', '测试阶段需求数量'], ['estimatedTotalDemand', '项目预计总需求量'], ['expectedMpDate', '预计 MP（量产）日期'],
+  ['customerName', '采购客户公司'], ['projectName', '项目名称'],
+  ['terminalCustomer', '终端客户'], ['odmIntegrator', 'ODM（原始设计制造商）集成商'], ['moduleFactory', '模组厂'], ['application', '应用'], ['stage', '测试验证阶段'], ['testDemandQuantity', '测试阶段需求数量'], ['estimatedTotalDemand', '项目预计总需求量'], ['expectedMpDate', '预计 MP（量产）日期'],
 ]
+const frozenColumns = { customerName: 'project-frozen project-company-column', projectName: 'project-frozen project-name-column' }
 const stageLabels = {
   EVT: 'EVT（工程验证测试）',
   DVT: 'DVT（设计验证测试）',
@@ -341,8 +342,8 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
         <span>已选择 <strong>{{ selectedIds.length }}</strong> 个项目</span>
         <div class="assignment-actions"><select v-model="assignTarget" class="field" :disabled="bulkBusy" aria-label="选择已勾选项目所属公司"><option value="__choose__" disabled>选择所属公司</option><option value="">暂不归属公司</option><option v-for="c in customers" :key="c.id" :value="String(c.id)">{{ c.fullName }}</option></select><button class="button" :disabled="bulkBusy || assignTarget === '__choose__'" @click="assignSelected">{{ assigning ? '正在归属…' : '归属到公司' }}</button><button class="button danger-outline" :disabled="bulkBusy" @click="removeSelectedProjects">{{ deletingSelected ? '正在删除…' : '删除已选项目' }}</button><button class="text-button" :disabled="bulkBusy" @click="clearSelection">取消选择</button></div>
       </div>
-      <div class="table-wrap"><table><thead><tr><th class="selection-column"><input class="project-checkbox" type="checkbox" aria-label="全选当前显示项目" :checked="allVisibleSelected" :indeterminate="someVisibleSelected" :disabled="!visibleProjects.length || bulkBusy" @change="toggleVisibleSelection($event.target.checked)"></th><th v-for="[, label] in columns" :key="label">{{ label }}</th><th>操作</th></tr></thead>
-        <tbody><tr v-for="p in visibleProjects" :key="p.id"><td class="selection-column"><input class="project-checkbox" type="checkbox" :aria-label="`选择项目 ${p.projectName}`" :checked="selectedIds.includes(p.id)" :disabled="bulkBusy" @change="toggleProjectSelection(p.id, $event.target.checked)"></td><td v-for="[key] in columns" :key="key">
+      <div class="table-wrap project-table-wrap"><table class="projects-table"><colgroup><col class="selection-column"><col v-for="[key] in columns" :key="key" :class="frozenColumns[key] || 'project-data-column'"><col class="project-actions-column"></colgroup><thead><tr><th class="selection-column project-frozen"><input class="project-checkbox" type="checkbox" aria-label="全选当前显示项目" :checked="allVisibleSelected" :indeterminate="someVisibleSelected" :disabled="!visibleProjects.length || bulkBusy" @change="toggleVisibleSelection($event.target.checked)"></th><th v-for="[key, label] in columns" :key="key" :class="frozenColumns[key]">{{ label }}</th><th>操作</th></tr></thead>
+        <tbody><tr v-for="p in visibleProjects" :key="p.id"><td class="selection-column project-frozen"><input class="project-checkbox" type="checkbox" :aria-label="`选择项目 ${p.projectName}`" :checked="selectedIds.includes(p.id)" :disabled="bulkBusy" @change="toggleProjectSelection(p.id, $event.target.checked)"></td><td v-for="[key] in columns" :key="key" :class="frozenColumns[key]" :title="frozenColumns[key] ? (p[key] || undefined) : undefined">
           <span v-if="key === 'stage' && p[key]" class="stage" :class="p[key]">{{ stageLabels[p[key]] || p[key] }}</span>
           <template v-else-if="key === 'customerName' && !p.customerId"><span class="muted">未归属</span><small v-if="customerCandidate(p)" class="customer-candidate">原表：{{ customerCandidate(p) }}（待确认）</small></template>
           <template v-else-if="key === 'projectName'"><strong>{{ p[key] || '—' }}</strong><span v-if="p.reportData" class="source-badge">开发报告</span></template>
