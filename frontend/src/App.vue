@@ -47,7 +47,7 @@ const columns = [
   ['customerName', '采购客户公司'], ['projectName', '项目名称'],
   ['terminalCustomer', '终端客户'], ['odmIntegrator', 'ODM（原始设计制造商）集成商'], ['moduleFactory', '模组厂'], ['application', '应用'], ['stage', '测试验证阶段'], ['testDemandQuantity', '测试阶段需求数量'], ['estimatedTotalDemand', '项目预计总需求量'], ['expectedMpDate', '预计 MP（量产）日期'],
 ]
-const frozenColumns = { customerName: 'project-frozen project-company-column', projectName: 'project-frozen project-name-column' }
+const frozenColumns = { customerName: 'project-frozen project-company-column', projectName: 'project-frozen project-name-column', terminalCustomer: 'project-frozen project-terminal-column' }
 const stageLabels = {
   EVT: 'EVT（工程验证测试）',
   DVT: 'DVT（设计验证测试）',
