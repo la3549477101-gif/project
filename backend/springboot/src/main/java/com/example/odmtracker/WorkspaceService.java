@@ -52,7 +52,7 @@ public class WorkspaceService {
         customers.findByNormalizedName(normalized).ifPresent(existing->{
             if(!Objects.equals(existing.id,id)) throw new ResponseStatusException(HttpStatus.CONFLICT,"该公司已建档，请选择现有客户");
         });
-        CustomerRecord c=id==null ? new CustomerRecord() : customer(id);
+        CustomerRecord c=id==null ? new CustomerRecord() : customers.findLockedById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"客户不存在"));
         String[] old=customerValues(c);
         Map<String,String> profile=CustomerProfile.merge(c.profile,input.profile);
         c.fullName=full; c.normalizedName=normalized;
@@ -70,7 +70,7 @@ public class WorkspaceService {
     }
     @Transactional
     public CustomerRecord folderResult(Long id, String path, String error) {
-        CustomerRecord c=customer(id);
+        CustomerRecord c=customers.findLockedById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"客户不存在"));
         if(path!=null && !path.isBlank()) { c.archivePath=path; c.folderStatus="READY"; c.folderError=""; }
         else { c.folderStatus="FAILED"; c.folderError=error==null?"文件夹创建失败":error.substring(0,Math.min(1000,error.length())); }
         return customers.save(c);

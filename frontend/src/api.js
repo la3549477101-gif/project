@@ -15,6 +15,11 @@ async function request(url, options = {}) {
 }
 
 export const api = {
+  orders: (filters = {}) => request(`${SPRING}/orders?${new URLSearchParams(Object.entries(filters).filter(([,v]) => v != null && v !== ''))}`),
+  order: id => request(`${SPRING}/orders/${id}`),
+  previewOrder: body => request(`${SPRING}/orders/preview`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }),
+  createOrder: body => request(`${SPRING}/orders`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }),
+  orderExportUrl: customerId => `${SPRING}/orders/export${customerId ? '?customerId=' + customerId : ''}`,
   customers: () => request(`${SPRING}/customers`),
   customerProfileSchema: () => request(`${SPRING}/customers/profile-schema`),
   detailOptions: () => request(`${SPRING}/projects/detail-options`),

@@ -6,6 +6,7 @@ import CustomerDialog from './CustomerDialog.vue'
 import CustomerProfile from './CustomerProfile.vue'
 import ProjectBusiness from './ProjectBusiness.vue'
 import WeeklyUpdates from './WeeklyUpdates.vue'
+import OrdersWorkspace from './OrdersWorkspace.vue'
 
 const projects = ref([])
 const businessProject = ref(null)
@@ -26,7 +27,7 @@ const currentCompany = computed(() => customers.value.find(c => c.id === company
 const filteredCustomers = computed(() => customers.value.filter(c => [c.fullName,c.shortName,c.contactName].some(v => v?.toLowerCase().includes(companySearch.value.trim().toLowerCase()))))
 const bulkBusy = computed(() => deletingSelected.value || assigning.value || priorityBusy.value)
 const projectView = computed(() => ['projects','company','unassigned','priority'].includes(view.value))
-const viewTitle = computed(() => ({ customers:'客户公司',projects:'全部项目',weekly:'本周更新',unassigned:'未归属项目',priority:'重点项目',company:currentCompany.value?.fullName || '客户公司' }[view.value]))
+const viewTitle = computed(() => ({ customers:'客户公司',projects:'全部项目',orders:'全部订单',weekly:'本周更新',unassigned:'未归属项目',priority:'重点项目',company:currentCompany.value?.fullName || '客户公司' }[view.value]))
 const search = ref('')
 const stageFilter = ref('')
 const modalOpen = ref(false)
@@ -281,6 +282,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
       <nav class="primary-nav">
         <button :class="{ active: view === 'customers' }" :aria-current="view === 'customers' ? 'page' : undefined" :disabled="bulkBusy" @click="navigate('customers')">全部客户 <span>{{ customers.length }}</span></button>
         <button :class="{ active: view === 'projects' }" :disabled="bulkBusy" @click="navigate('projects')">全部项目 <span>{{ projects.length }}</span></button>
+        <button :class="{ active: view === 'orders' }" :aria-current="view === 'orders' ? 'page' : undefined" :disabled="bulkBusy" @click="navigate('orders')">客户订单</button>
         <button :class="{ active: view === 'priority' }" :aria-current="view === 'priority' ? 'page' : undefined" :disabled="bulkBusy" @click="navigate('priority')">★ 重点项目 <span>{{ priorityCount }}</span></button>
         <button :class="{ active: view === 'weekly' }" :aria-current="view === 'weekly' ? 'page' : undefined" :disabled="bulkBusy" @click="navigate('weekly')">◷ 本周更新</button>
         <button :class="{ active: view === 'unassigned' }" :disabled="bulkBusy" @click="navigate('unassigned')">未归属项目 <span>{{ unassignedCount }}</span></button>
@@ -320,6 +322,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
       <div class="profile-actions"><button class="button" :disabled="folderBusy" @click="retryFolder">{{ folderBusy ? '正在检查…' : currentCompany.folderStatus === 'READY' ? '检查客户文件夹' : '重试创建文件夹' }}</button><button class="button primary" @click="openCreate">＋ 新建该公司项目</button></div>
     </section>
     <WeeklyUpdates v-if="view === 'weekly'" :customers="customers" :existing-project-ids="projects.map(p => p.id)" :revision="revision" @open-project="openProjectById" @open-customer="openCustomerById" />
+    <OrdersWorkspace v-if="view === 'orders'" :customers="customers" :projects="projects" :revision="revision" @changed="revision++" />
     <section v-if="projectView" class="stats" aria-label="当前项目列表概览">
       <article class="stat"><span>项目总数</span><strong>{{ summary?.projectCount ?? '—' }}</strong></article>
       <article class="stat"><span>测试阶段需求总量</span><strong>{{ summary ? Number(summary.testDemandTotal).toLocaleString() : '—' }}<small>台</small></strong></article>
@@ -349,6 +352,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
       </table></div>
       <footer class="footer"><span>项目资料保存到本机。</span><span>“导出项目数据”导出全部项目，不包含客户完整档案和变更历史</span></footer>
     </section>
+    <OrdersWorkspace v-if="view === 'company' && currentCompany" :key="'orders-' + companyId" :customer-id="companyId" :customers="customers" :projects="projects" :revision="revision" @changed="revision++" />
     <WeeklyUpdates v-if="view === 'company' && currentCompany" :key="companyId" :customer-id="companyId" scope="all" :customers="customers" :existing-project-ids="projects.map(p => p.id)" :revision="revision" @open-project="openProjectById" @open-customer="openCustomerById" />
 
     <div v-if="modalOpen" class="overlay" @click.self="closeModal" @keydown.esc="closeModal">
