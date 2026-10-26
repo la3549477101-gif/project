@@ -20,22 +20,18 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/projects")
-@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173"})
+@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173","${odm.extra-origin:http://127.0.0.1:5173}"})
 public class ProjectController {
-    private final ProjectRepository repository;
+    private final WorkspaceService workspace;
 
-    public ProjectController(ProjectRepository repository) { this.repository = repository; }
+    public ProjectController(WorkspaceService workspace) { this.workspace = workspace; }
 
     @GetMapping
     public List<ProjectRecord> list(@RequestParam(required = false) String search,
-                                    @RequestParam(required = false) String stage) {
-        String query = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
-        return repository.findAll().stream()
-            .filter(p -> stage == null || stage.isBlank() || stage.equals(p.getStage()))
-            .filter(p -> query.isBlank() || contains(p.getTerminalCustomer(), query)
-                || contains(p.getOdmIntegrator(), query) || contains(p.getModuleFactory(), query)
-                || contains(p.getProjectName(), query) || contains(p.getApplication(), query))
-            .toList();
+                                    @RequestParam(required = false) String stage,
+                                    @RequestParam(required = false) Long customerId,
+                                    @RequestParam(defaultValue = "false") boolean unassigned) {
+        return workspace.list(search,stage,customerId,unassigned);
     }
 
     private boolean contains(String value, String query) {
@@ -46,49 +42,40 @@ public class ProjectController {
     @ResponseStatus(HttpStatus.CREATED)
     public ProjectRecord create(@RequestBody ProjectRecord project) {
         validate(project);
-        project.setId(null);
-        return repository.save(project);
+        return workspace.saveProject(null, project);
     }
 
     @PutMapping("/{id}")
     public ProjectRecord update(@PathVariable Long id, @RequestBody ProjectRecord input) {
-        ProjectRecord current = repository.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "项目不存在"));
         validate(input);
-        if (input.getReportData() == null) input.setReportData(current.getReportData());
-        input.setId(current.getId());
-        return repository.save(input);
+        return workspace.saveProject(id, input);
     }
 
     @PostMapping("/import")
     @ResponseStatus(HttpStatus.CREATED)
     public List<ProjectRecord> importProjects(@RequestBody List<ProjectRecord> projects) {
+        if(projects == null || projects.isEmpty() || projects.size()>5000)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"请选择1到5000条记录");
         projects.forEach(this::validate);
-        projects.forEach(p -> p.setId(null));
-        return repository.saveAll(projects);
+        return workspace.importProjects(projects);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
-        if (!repository.existsById(id)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "项目不存在");
-        repository.deleteById(id);
+        workspace.delete(id);
     }
 
     @PostMapping("/bulk-delete")
     @Transactional
     public Map<String, Integer> bulkDelete(@RequestBody List<Long> ids) {
-        if (ids == null || ids.isEmpty())
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请先选择要删除的项目");
-        if (ids.size() > 5000)
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "一次最多删除 5000 个项目");
-        if (ids.stream().anyMatch(id -> id == null || id <= 0))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "项目编号无效，请刷新页面后重试");
+        return Map.of("deletedCount", workspace.deleteMany(ids));
+    }
 
-        List<Long> uniqueIds = ids.stream().distinct().toList();
-        List<ProjectRecord> existing = repository.findAllById(uniqueIds);
-        repository.deleteAll(existing);
-        return Map.of("deletedCount", existing.size());
+    public record Assignment(List<Long> ids, Long customerId) {}
+    @PostMapping("/assign")
+    public Map<String,Integer> assign(@RequestBody Assignment input) {
+        return workspace.assign(input.ids(), input.customerId());
     }
 
     private void validate(ProjectRecord project) {

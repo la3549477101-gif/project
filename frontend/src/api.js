@@ -15,10 +15,18 @@ async function request(url, options = {}) {
 }
 
 export const api = {
+  customers: () => request(`${SPRING}/customers`),
+  createCustomer: (customer) => request(`${SPRING}/customers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(customer) }),
+  updateCustomer: (id, customer) => request(`${SPRING}/customers/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(customer) }),
+  retryFolder: (id) => request(`${SPRING}/customers/${id}/folder/retry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),
+  assign: (ids, customerId) => request(`${SPRING}/projects/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, customerId }) }),
+  activities: (filters) => request(`${SPRING}/activities?${new URLSearchParams(Object.entries(filters).filter(([, value]) => value != null && value !== ''))}`),
   projects: (filters = {}) => {
     const query = new URLSearchParams()
     if (filters.search) query.set('search', filters.search)
     if (filters.stage) query.set('stage', filters.stage)
+    if (filters.customerId) query.set('customerId', filters.customerId)
+    if (filters.unassigned) query.set('unassigned', 'true')
     return request(`${SPRING}/projects?${query}`)
   },
   create: (project) => request(`${SPRING}/projects`, {

@@ -1,6 +1,8 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { api } from './api'
+const props = defineProps({ customers: { type: Array, default: () => [] }, defaultCustomerId: Number })
+const targetCustomerId = ref(props.defaultCustomerId ? String(props.defaultCustomerId) : '')
 
 const emit = defineEmits(['close', 'imported'])
 const dialog = ref(null)
@@ -169,10 +171,16 @@ async function confirm() {
     return
   }
   if (!selectedRows.value.length) { error.value = '请先选择至少一条校验通过的记录。'; return }
+  const company = props.customers.find(c => c.id === Number(targetCustomerId.value))
+  if (targetCustomerId.value && !company) { error.value = '所选公司已不存在，请重新选择'; return }
+  if (company && selectedRows.value.some(row => row.customerCandidate && ![company.fullName, company.shortName].includes(row.customerCandidate.trim()))) {
+    if (!window.confirm(`所选记录包含与“${company.fullName}”不一致的原客户名称。请确认只勾选属于该公司的记录。仍要统一归属到该公司吗？`)) return
+  }
   const projects = selectedRows.value.map(row => ({
     ...row.project,
     projectName: String(row.project.projectName).trim(),
     expectedMpDate: row.project.expectedMpDate || null,
+    customerId: company?.id || null,
   }))
   importing.value = true
   try {
@@ -196,6 +204,8 @@ onMounted(async () => { await nextTick(); dialog.value?.focus() })
           <input ref="fileInput" class="hidden" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="选择项目数据文件" :disabled="previewing || importing" @change="chooseFile">
         </div>
         <p class="import-notice">完全相同的记录会跳过；修改过内容的记录会新增。本次导入不会自动覆盖已有记录，同名项目也会保留各自的型号、规格等报告内容。</p>
+        <label class="import-customer-picker">本次所选记录归属公司<select v-model="targetCustomerId" class="field" :disabled="importing"><option value="">暂不归属，稍后人工确认</option><option v-for="c in customers" :key="c.id" :value="String(c.id)">{{ c.fullName }}</option></select></label>
+        <p class="import-help">多公司报告请分批勾选并选择公司。原表客户名称仅作核对，不会自动创建或匹配客户。</p>
         <div v-if="error" class="error import-error" role="alert">{{ error }}</div>
         <ul v-if="fileWarnings.length" class="import-warning-list"><li v-for="(warning, index) in fileWarnings" :key="index">{{ warning }}</li></ul>
         <div v-if="previewing" class="import-state" role="status"><strong>正在解析表格…</strong><span>解析完成后，可选择工作表并检查每条记录。</span></div>
@@ -228,6 +238,7 @@ onMounted(async () => { await nextTick(); dialog.value?.focus() })
                     </tr>
                     <tr class="import-row-notes"><td colspan="11">
                       <div class="import-row-status" :class="rowErrors(row).length ? 'is-pending' : 'is-ready'">{{ rowErrors(row).length ? '待更正：' + rowErrors(row).join('；') : '校验通过，可选择导入' }}</div>
+                      <p v-if="row.customerCandidate" class="notice">原表客户：{{ row.customerCandidate }}（待人工确认归属）</p>
                       <ul v-if="row.errors.length" class="import-original-errors"><li v-for="(message, index) in row.errors" :key="index" :class="{ resolved: originalErrorResolved(row, message) }">{{ originalErrorResolved(row, message) ? '已修正 · ' : '原表校验 · ' }}{{ message }}</li></ul>
                       <ul v-if="row.warnings.length" class="import-row-warnings"><li v-for="(warning, index) in row.warnings" :key="index">提示 · {{ warning }}</li></ul>
                       <details v-if="row.project.reportData" class="report-details"><summary>查看本行原开发报告（{{ reportFields(row).length || '原始' }} 项）</summary><dl v-if="reportFields(row).length" class="report-fields"><template v-for="[label, value] in reportFields(row)" :key="label"><dt>{{ label }}</dt><dd>{{ value === '' || value == null ? '（空）' : value }}</dd></template></dl><p v-else class="muted">原报告内容已保留，但无法展开显示。</p></details>

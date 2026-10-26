@@ -6,6 +6,8 @@ backend/flask/__pycache__/
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
+work/
+.superpowers/
 backend/springboot/target/
 backend/springboot/data/*.mv.db
 backend/springboot/data/*.trace.db

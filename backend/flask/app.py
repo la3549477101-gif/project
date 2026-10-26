@@ -8,12 +8,13 @@ import requests
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 from import_routes import register_import_routes
+from customer_folders import register_customer_folders
 
 app = Flask(__name__)
 # Expanded Excel drafts contain both basic fields and original report values.
 # File uploads have their own lower limit in register_import_routes.
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
-CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173"]}})
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5173", "http://127.0.0.1:5173", os.getenv('ODM_FRONTEND_ORIGIN', 'http://127.0.0.1:5173')]}})
 
 SPRING_API = os.getenv("SPRING_API", "http://localhost:8080/api")
 CSV_HEADERS = [
@@ -62,12 +63,15 @@ def export_csv():
     stream = io.StringIO(newline="")
     writer = csv.writer(stream)
     has_report = any(p.get('reportData') for p in projects)
-    writer.writerow(CSV_HEADERS + (["开发报告原始资料"] if has_report else []))
+    has_customer = any(p.get('customerName') for p in projects)
+    writer.writerow(CSV_HEADERS + (["开发报告原始资料"] if has_report else []) + (["实际客户"] if has_customer else []))
     keys = list(FIELD_MAP.values())
     for project in projects:
         values = ["" if project.get(key) is None else project.get(key) for key in keys]
         if has_report:
             values.append(project.get('reportData') or '')
+        if has_customer:
+            values.append(project.get('customerName') or '')
         writer.writerow(values)
     content = "\ufeff" + stream.getvalue()
     return Response(
@@ -148,6 +152,7 @@ def import_csv():
 
 
 register_import_routes(app, SPRING_API, lambda: fetch_projects())
+register_customer_folders(app, SPRING_API)
 
 
 if __name__ == "__main__":

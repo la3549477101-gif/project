@@ -13,6 +13,7 @@ from import_parser import REPORT_HEADERS, canonical_header, read_import, validat
 
 def fingerprint(project):
     data = validate_project(project)
+    data['customerId'] = project.get('customerId')
     raw = data.pop('reportData', None)
     if raw:
         metadata = json.loads(raw)
@@ -85,7 +86,7 @@ def register_import_routes(app, spring_api, fetch_projects):
             records = fetch_projects()
         except requests.RequestException:
             return jsonify(error='无法连接项目数据库服务，请检查应用是否启动'), 502
-        headers = list(REPORT_HEADERS) + ['原单价表头', '开发报告原始资料', '来源工作表', '来源文件', '来源行号']
+        headers = list(REPORT_HEADERS) + ['实际客户', '原单价表头', '开发报告原始资料', '来源工作表', '来源文件', '来源行号']
         reports = []
         for project in records:
             if not project.get('reportData'):
@@ -105,6 +106,9 @@ def register_import_routes(app, spring_api, fetch_projects):
                     if canonical == '单价':
                         fields['原单价表头'] = key
             fields['开发报告原始资料'] = project.get('reportData') or ''
+            fields['实际客户'] = project.get('customerName') or ''
+            if project.get('customerName'):
+                fields['客户'] = project['customerName']
             fields['项目名称'] = project.get('projectName') or ''
             fields['终端客户'] = project.get('terminalCustomer') or ''
             fields['应用'] = project.get('application') or ''

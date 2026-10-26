@@ -26,6 +26,10 @@ public class ProjectRecord {
     private LocalDate expectedMpDate;
     @Lob
     private String reportData;
+    public Long customerId;
+    @jakarta.persistence.Transient public String customerName;
+    public java.time.Instant createdAt;
+    public java.time.Instant updatedAt;
 
     public ProjectRecord() {}
 

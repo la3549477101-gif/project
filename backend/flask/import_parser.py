@@ -154,6 +154,12 @@ def _normalize_project(project):
         except ValueError as exc:
             normalized[key] = value
             errors.append(str(exc))
+    if 'customerId' in project:
+        identity = project.get('customerId')
+        if identity is not None and (isinstance(identity, bool) or not isinstance(identity, int) or not 0 < identity <= MAX_SAFE_INTEGER):
+            errors.append('实际客户编号无效，请重新选择客户')
+        else:
+            normalized['customerId'] = identity
     return normalized, errors
 
 
@@ -351,7 +357,7 @@ def _preview_sheet(name, source_rows, filename):
     indexes = {label: canonical.index(label) for label in required}
     sheet['headers'] = list(required)
     raw_headers = [cell.text for cell in source_rows[header_index]]
-    auxiliary = _REPORT_EXPORT_COLUMNS if sheet['format'] == 'report' else {_BACKUP_HEADER}
+    auxiliary = (_REPORT_EXPORT_COLUMNS if sheet['format'] == 'report' else {_BACKUP_HEADER}) | {'实际客户'}
     unknown = [label for label in canonical if label and label not in required and label not in auxiliary]
     if unknown:
         if sheet['format'] == 'report':
@@ -399,7 +405,9 @@ def _preview_sheet(name, source_rows, filename):
             project['projectName'] = ''
             warnings.append('项目名称来自公式，请填写已确认的项目名称；报告内保留原公式文本')
         project, errors = _normalize_project(project)
-        sheet['rows'].append({'rowNumber': offset, 'project': project,
+        candidate_index = canonical.index('实际客户') if '实际客户' in canonical else None
+        candidate = row[candidate_index].text.strip() if candidate_index is not None and candidate_index < len(row) else (get('客户').strip() if sheet['format'] == 'report' else '')
+        sheet['rows'].append({'rowNumber': offset, 'project': project, 'customerCandidate': candidate,
                               'errors': source_errors + errors, 'warnings': warnings})
     return sheet
 
