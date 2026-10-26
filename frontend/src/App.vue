@@ -9,10 +9,13 @@ import WeeklyUpdates from './WeeklyUpdates.vue'
 import OrdersWorkspace from './OrdersWorkspace.vue'
 import ReportLedger from './ReportLedger.vue'
 import ReportRowEditor from './ReportRowEditor.vue'
+import ReportDefaultsDialog from './ReportDefaultsDialog.vue'
 
 const projects = ref([])
 const reportRows = ref([])
 const reportEditorOpen = ref(false)
+const reportDefaultsOpen=ref(false),reportInitialDefaults=ref(null),reportOpening=ref(false)
+const reportDefaultCustomerId=ref(null)
 const reportEditing = ref(null)
 const businessProject = ref(null)
 const customers = ref([])
@@ -57,7 +60,14 @@ const visibleProjects = computed(() => projects.value.filter(p => {
   return !query || [p.customerName,customerCandidate(p),p.terminalCustomer,p.odmIntegrator,p.moduleFactory,p.projectName,p.application,...reportRows.value.filter(r=>r.projectId===p.id).flatMap(r=>Object.values(r.fields))].some(v => v?.toLowerCase().includes(query))
 }))
 const visibleReportRows = computed(() => { const ids=new Set(visibleProjects.value.map(p=>p.id));return reportRows.value.filter(r=>ids.has(r.projectId)) })
-function editReport(row=null){reportEditing.value=row;reportEditorOpen.value=true}
+async function editReport(row=null){
+  if(reportOpening.value)return
+  const targetCustomerId=view.value==='company'?companyId.value:null
+  reportOpening.value=true
+  try{reportInitialDefaults.value=row?null:await api.reportDefaults();reportDefaultCustomerId.value=targetCustomerId;reportEditing.value=row;reportEditorOpen.value=true}
+  catch(e){error.value='无法读取默认填入设置：'+e.message+'。请检查服务后重试新建项目。'}
+  finally{reportOpening.value=false}
+}
 async function savedReport(){reportEditorOpen.value=false;await refresh();showToast('项目报告行已保存')}
 function selectReportProjects(ids,checked){const next=new Set(selectedIds.value);ids.forEach(id=>checked?next.add(id):next.delete(id));selectedIds.value=[...next]}
 function customerCandidate(project) {
@@ -294,8 +304,8 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
         <button class="button" @click="editCustomer()">＋ 新建客户</button>
         <button class="button" title="从 Excel（.xls / .xlsx）或 CSV（逗号分隔值）文件导入已填写的项目数据" @click="importOpen = true">导入项目数据</button>
         <a class="button" :href="api.exportUrl" title="导出全部项目及原始报告资料，格式为 CSV（逗号分隔值），可用 Excel 打开">导出项目数据</a>
-        <a class="button" :href="api.reportWorkbookUrl" title="导出所有客户的项目报告行，按原18列分为开发、成交、EOL和重点项目4张Excel工作表，不限当前筛选">导出项目表（Excel）</a>
-        <button class="button primary" @click="openCreate">＋ 新建项目</button>
+        <a class="button" :href="api.reportWorkbookUrl" title="导出所有客户报告，原18列保持顺序，有品牌时追加品牌列；开发、成交、EOL和重点项目4张表，不限当前筛选">导出项目表（Excel）</a>
+        <button class="button primary" :disabled="reportOpening" @click="openCreate">{{reportOpening?'正在读取默认设置…':'＋ 新建项目'}}</button>
       </div>
     </header>
 
@@ -337,7 +347,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
         <span>已选择 <strong>{{ selectedIds.length }}</strong> 个项目</span>
         <div class="assignment-actions"><select v-model="assignTarget" class="field" :disabled="bulkBusy" aria-label="选择已勾选项目所属公司"><option value="__choose__" disabled>选择所属公司</option><option value="">暂不归属公司</option><option v-for="c in customers" :key="c.id" :value="String(c.id)">{{ c.fullName }}</option></select><button class="button" :disabled="bulkBusy || assignTarget === '__choose__'" @click="assignSelected">{{ assigning ? '正在归属…' : '归属到公司' }}</button><button class="button danger-outline" :disabled="bulkBusy" @click="removeSelectedProjects">{{ deletingSelected ? '正在删除…' : '删除已选项目' }}</button><button class="text-button" :disabled="bulkBusy" @click="clearSelection">取消选择</button></div>
       </div>
-      <ReportLedger :key="view+'-'+companyId" :rows="visibleReportRows" :projects="projects" :selected-ids="selectedIds" :busy="bulkBusy" @edit="editReport" @business="businessProject=$event" @basic="openEdit" @priority="togglePriority" @remove="removeProject" @select="toggleProjectSelection" @select-visible="selectReportProjects" @clear-selection="clearSelection" />
+      <ReportLedger :key="view+'-'+companyId" :rows="visibleReportRows" :projects="projects" :selected-ids="selectedIds" :busy="bulkBusy" @defaults="reportDefaultsOpen=true" @edit="editReport" @business="businessProject=$event" @basic="openEdit" @priority="togglePriority" @remove="removeProject" @select="toggleProjectSelection" @select-visible="selectReportProjects" @clear-selection="clearSelection" />
       <footer class="footer"><span>项目资料保存到本机。</span><span>“导出项目数据”导出全部项目，不包含客户完整档案和变更历史</span></footer>
     </section>
     <OrdersWorkspace v-if="view === 'company' && currentCompany" :key="'orders-' + companyId" :customer-id="companyId" :customers="customers" :projects="projects" :revision="revision" @changed="revision++" />
@@ -358,7 +368,8 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
         </form>
       </section>
     </div>
-    <ReportRowEditor v-if="reportEditorOpen" :row="reportEditing" :customers="customers" :default-customer-id="view === 'company' ? companyId : null" @close="reportEditorOpen=false" @saved="savedReport" />
+    <ReportDefaultsDialog v-if="reportDefaultsOpen" @close="reportDefaultsOpen=false" @saved="reportDefaultsOpen=false;showToast('默认填入设置已保存，新建报告时生效')" />
+    <ReportRowEditor v-if="reportEditorOpen" :initial-defaults="reportInitialDefaults" :row="reportEditing" :customers="customers" :default-customer-id="reportDefaultCustomerId" @close="reportEditorOpen=false" @saved="savedReport" />
     <ProjectBusiness v-if="businessProject" :key="businessProject.id" :project="businessProject" @close="businessProject = null" @changed="refresh" />
     <CustomerDialog v-if="customerOpen" :customer="editingCustomer" :customers="customers" :groups="customerProfileGroups" @close="customerOpen = false" @saved="savedCustomer" />
     <ImportDialog v-if="importOpen" :customers="customers" :default-customer-id="view === 'company' ? companyId : null" @close="importOpen = false" @imported="imported" />

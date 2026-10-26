@@ -3,7 +3,7 @@ import { reactive } from 'vue'
 const props = defineProps({ detail: Object, stages: Array, saving: Boolean })
 const emit = defineEmits(['save','cancel'])
 const fields = [
-  ['materialModel','材料型号'], ['specification','成品规格'], ['productLine','产品线'], ['owner','负责人'],
+  ['materialModel','材料型号'], ['brand','品牌'], ['specification','成品规格'], ['productLine','产品线'], ['owner','负责人'],
   ['reportDate','报告日期（保留原精度）'], ['caseStatus','案子状况（按原约定填写）'],
   ['quotePrice','当前报价','decimal'], ['currency','币种'], ['quantityUnit','数量单位'], ['priceTerms','计价与含税说明'],
   ['estimatedAnnualQuantity','预估年用量','decimal'], ['estimatedAnnualRevenue','预估年营业额（手工填写）','decimal'],

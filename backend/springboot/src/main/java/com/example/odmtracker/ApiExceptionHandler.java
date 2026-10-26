@@ -9,6 +9,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<Map<String,String>> stale(org.springframework.orm.ObjectOptimisticLockingFailureException exception) {
+        return ResponseEntity.status(409).body(Map.of("message","资料已被其他窗口修改，请重新打开并核对"));
+    }
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<Map<String,String>> conflict(org.springframework.dao.DataIntegrityViolationException exception) {
         return ResponseEntity.status(409).body(Map.of("message","资料存在冲突，请刷新并核对已有客户后重试"));

@@ -1,10 +1,24 @@
 import io
+import json
 import unittest
 from openpyxl import load_workbook
 from report_export import build_report_workbook
 
 
 class ReportWorkbook(unittest.TestCase):
+    def test_brand_is_appended_without_shifting_the_original_eighteen_columns(self):
+        row={'category':'开发','fields':{'projectName':'合成品牌项目','brand':'=合成品牌'}}
+        book=load_workbook(io.BytesIO(build_report_workbook([row])))
+        self.assertEqual(book['开发'].max_column,19)
+        self.assertEqual(book['开发']['R2'].value,'备注')
+        self.assertEqual(book['开发']['S2'].value,'品牌')
+        self.assertEqual(book['开发']['S3'].value,'=合成品牌')
+        self.assertEqual(book['开发']['S3'].data_type,'s')
+        self.assertEqual(book['重点项目'].max_column,19)
+        from import_parser import read_import
+        parsed=read_import(build_report_workbook([row]),'synthetic-brand.xlsx')
+        raw=json.loads(parsed['sheets'][0]['rows'][0]['project']['reportData'])
+        self.assertEqual(raw['fields']['品牌'],'=合成品牌')
     def test_four_sheets_match_eighteen_fields_and_priority_duplicates_only_as_view(self):
         row={'category':'开发','important':True,'currency':'CNY','quantityUnit':'件','priceTerms':'含税每件',
              'fields':{'customerName':'合成客户','projectName':'合成项目','quotePrice':'0.335','estimatedAnnualRevenue':'1234567890123.123456','statusNote':'等待测试','owner':'=1+2'}}

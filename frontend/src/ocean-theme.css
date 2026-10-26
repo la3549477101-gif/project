@@ -182,6 +182,20 @@ tbody tr:hover td { background: #195779; }
 .report-select-edit .report-inline-edit { min-width:0; width:28px; padding:3px 0; font-size:11px; line-height:1.4; white-space:nowrap; color:var(--ocean-accent); border:1px solid var(--ocean-line); border-radius:4px; background:rgba(138,225,246,.08); }
 .report-select-edit .report-inline-edit:hover { background:rgba(138,225,246,.2); }
 .report-select-edit .report-inline-edit:focus-visible { outline:2px solid var(--ocean-accent); outline-offset:2px; }
+.project-table-wrap.identity-collapsed { --project-company-width:0px; --project-name-width:0px; --project-terminal-width:0px; }
+.report-drawer-bar { display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:12px 22px; border-bottom:1px solid var(--ocean-line); background:rgba(5,41,67,.3); font-size:11px; }
+.report-drawer-toggle { border:1px solid var(--ocean-line-strong); border-radius:6px; padding:7px 11px; background:rgba(138,225,246,.1); color:var(--ocean-accent); cursor:pointer; }
+.report-drawer-bar > .text-button { margin-left:auto; }
+.report-drawer-toggle:focus-visible { outline:2px solid var(--ocean-accent); outline-offset:2px; }
+.report-defaults-dialog { max-width:720px; }
+.report-defaults-dialog .business-body { padding:20px 22px; }
+.report-default-options { display:grid; gap:12px; margin-bottom:20px; }
+.report-default-option { display:grid; grid-template-columns:150px minmax(0,1fr); align-items:center; gap:15px; padding:12px; background:rgba(83,171,204,.08); border:1px solid var(--ocean-line); border-radius:7px; }
+.report-default-switch { display:flex; align-items:center; gap:9px; }
+.report-default-switch input { width:16px; height:16px; margin:0; flex:0 0 16px; accent-color:var(--ocean-accent); }
+.report-default-value { display:grid; gap:5px; min-width:0; font-size:11px; }
+.report-default-value input { box-sizing:border-box; width:100%; min-width:0; padding:9px 11px; color:var(--ocean-text); border:1px solid var(--ocean-line-strong); border-radius:6px; background:var(--ocean-input); font:inherit; font-size:13px; }
+@media (max-width:540px) { .report-default-option { grid-template-columns:1fr; gap:9px; } }
 .report-table td { vertical-align:top; line-height:1.7; }
 .report-table td small { display:block; font-size:10px; white-space:normal; overflow-wrap:anywhere; }
 .report-table .report-long-text { white-space:normal; overflow-wrap:anywhere; }

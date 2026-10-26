@@ -14,12 +14,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ReportService {
-    public static final List<String> KEYS=List.of("owner","reportDate","productLine","caseStatus","customerName","terminalCustomer","projectName","application","materialModel","specification","quotePrice","estimatedAnnualQuantity","estimatedAnnualRevenue","statusNote","expectedMpText","competitor","competitorPrice","notes");
-    public static final List<String> LABELS=List.of("负责人","日期","产品线","案子状况","客户","终端客户","项目名称","应用","材料型号","成品规格","单价","预估年用量","预估年营业额","项目状态","预估量产时间","竞争对手","竞争对手单价","备注");
+    public static final List<String> KEYS=List.of("owner","reportDate","productLine","caseStatus","customerName","terminalCustomer","projectName","application","materialModel","specification","quotePrice","estimatedAnnualQuantity","estimatedAnnualRevenue","statusNote","expectedMpText","competitor","competitorPrice","notes","brand");
+    public static final List<String> LABELS=List.of("负责人","日期","产品线","案子状况","客户","终端客户","项目名称","应用","材料型号","成品规格","单价","预估年用量","预估年营业额","项目状态","预估量产时间","竞争对手","竞争对手单价","备注","品牌");
     private final ProjectRepository projects; private final ProjectDetailRepository details;
+    private final ReportDefaultsService defaults;
     private final WorkspaceService workspace; private final ProjectBusinessService business; private final ObjectMapper mapper;
-    public ReportService(ProjectRepository projects,ProjectDetailRepository details,WorkspaceService workspace,ProjectBusinessService business,ObjectMapper mapper) {
-        this.projects=projects;this.details=details;this.workspace=workspace;this.business=business;this.mapper=mapper;
+    public ReportService(ProjectRepository projects,ProjectDetailRepository details,WorkspaceService workspace,ProjectBusinessService business,ObjectMapper mapper,ReportDefaultsService defaults) {
+        this.projects=projects;this.details=details;this.workspace=workspace;this.business=business;this.mapper=mapper;this.defaults=defaults;
     }
     public record Row(String key,Long projectId,Long detailId,Long customerId,boolean important,boolean archivedOnly,String category,Map<String,String> fields,String currency,String quantityUnit,String priceTerms,String businessStage,String version) {}
     public record Input(String version,Long detailId,Long customerId,Boolean important,String category,Map<String,String> fields,String currency,String quantityUnit,String priceTerms,String businessStage) {}
@@ -43,7 +44,9 @@ public class ReportService {
         return List.of("开发","成交","EOL").contains(value)?value:"开发";
     }
     private String version(ProjectRecord p,ProjectDetail d,Map<String,String> fields,String category) {
-        try {String value=mapper.writeValueAsString(Arrays.asList(p.customerId,p.isImportant(),p.getReportData(),fields,category,d));
+        // Hash normalized business values, not timestamps whose precision changes after H2 persistence.
+        try {String value=mapper.writeValueAsString(Arrays.asList(p.customerId,p.isImportant(),p.getReportData(),fields,category,
+                d==null?null:Arrays.asList(d.id,d.archived,d.currency,d.quantityUnit,d.priceTerms,d.businessStage)));
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));}
         catch(Exception e) {throw new IllegalStateException(e);}
     }
@@ -54,13 +57,13 @@ public class ReportService {
         if(p.customerId!=null) fields.put("customerName",workspace.customer(p.customerId).fullName);
         if(d==null&&p.getExpectedMpDate()!=null) fields.put("expectedMpText",p.getExpectedMpDate().toString());
         if(d!=null) {
-            fields.put("owner",text(d.owner));fields.put("reportDate",text(d.reportDate));fields.put("productLine",text(d.productLine));fields.put("caseStatus",text(d.caseStatus));
+            fields.put("brand",text(d.brand));fields.put("owner",text(d.owner));fields.put("reportDate",text(d.reportDate));fields.put("productLine",text(d.productLine));fields.put("caseStatus",text(d.caseStatus));
             fields.put("materialModel",text(d.materialModel));fields.put("specification",text(d.specification));fields.put("quotePrice",decimal(d.quotePrice));
             fields.put("estimatedAnnualQuantity",decimal(d.estimatedAnnualQuantity));fields.put("estimatedAnnualRevenue",decimal(d.estimatedAnnualRevenue));
             fields.put("statusNote",text(d.statusNote));fields.put("expectedMpText",text(d.expectedMpText));fields.put("competitor",text(d.competitor));fields.put("competitorPrice",decimal(d.competitorPrice));fields.put("notes",text(d.notes));
         }
         String category=category(d,meta);
-        if(archivedOnly) {for(String key:List.of("materialModel","specification","quotePrice","estimatedAnnualQuantity","estimatedAnnualRevenue","competitorPrice"))fields.put(key,"");fields.put("statusNote","全部型号规格已归档，可在“规格与跟进”中恢复；本行为项目入口，不计作活动报价明细。");}
+        if(archivedOnly) {for(String key:List.of("brand","materialModel","specification","quotePrice","estimatedAnnualQuantity","estimatedAnnualRevenue","competitorPrice"))fields.put(key,"");fields.put("statusNote","全部型号规格已归档，可在“规格与跟进”中恢复；本行为项目入口，不计作活动报价明细。");}
         String legacyTerms=text(meta.get("priceTerms"));
         if(!meta.containsKey("priceTerms")&&legacyTerms.isEmpty()&&meta.get("fields") instanceof Map<?,?> raw&&raw.keySet().stream().anyMatch(k->canonical(k.toString()).equals("单价")&&k.toString().contains("含税"))) legacyTerms="含税（原表表头）";
         return new Row((d==null?"p:":"d:")+(d==null?p.getId():d.id),p.getId(),d==null?null:d.id,p.customerId,p.isImportant(),archivedOnly,category,fields,d==null?text(meta.get("currency")):text(d.currency),d==null?text(meta.get("quantityUnit")):text(d.quantityUnit),d==null?legacyTerms:text(d.priceTerms),d==null?text(meta.get("businessStage")):text(d.businessStage),version(p,d,fields,category));
@@ -95,7 +98,7 @@ public class ReportService {
     }
     private ProjectDetail detail(Input input,Map<String,String> f,ProjectDetail old) {
         ProjectDetail d=old==null?new ProjectDetail():mapper.convertValue(old,ProjectDetail.class);
-        d.owner=f.get("owner");d.reportDate=f.get("reportDate");d.productLine=f.get("productLine");d.caseStatus=f.get("caseStatus");d.reportCategory=text(input.category());
+        d.brand=f.get("brand");d.owner=f.get("owner");d.reportDate=f.get("reportDate");d.productLine=f.get("productLine");d.caseStatus=f.get("caseStatus");d.reportCategory=text(input.category());
         d.materialModel=f.get("materialModel");d.specification=f.get("specification");d.quotePrice=decimal(f.get("quotePrice"),"单价");
         d.estimatedAnnualQuantity=decimal(f.get("estimatedAnnualQuantity"),"预估年用量");d.estimatedAnnualRevenue=decimal(f.get("estimatedAnnualRevenue"),"预估年营业额");
         d.statusNote=f.get("statusNote");d.expectedMpText=f.get("expectedMpText");d.competitor=f.get("competitor");d.competitorPrice=decimal(f.get("competitorPrice"),"竞争对手单价");d.notes=f.get("notes");
@@ -103,6 +106,7 @@ public class ReportService {
     }
     @Transactional
     public Row save(Long id,Input input) {
+        if(id==null)input=defaults.apply(input);
         Map<String,String> f=fields(input);
         ProjectRecord p=id==null?new ProjectRecord():projects.findLockedById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"项目不存在"));
         ProjectDetail d=null;

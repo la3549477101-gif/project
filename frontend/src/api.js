@@ -15,6 +15,8 @@ async function request(url, options = {}) {
 }
 
 export const api = {
+  reportDefaults: () => request(`${SPRING}/report/defaults`),
+  saveReportDefaults: body => request(`${SPRING}/report/defaults`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
   reportRows: () => request(`${SPRING}/report/rows`),
   saveReportRow: (id,body) => request(`${SPRING}/report/rows${id?'/'+id:''}`,{method:id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
   reportWorkbookUrl: `${FLASK}/export/report.xlsx`,

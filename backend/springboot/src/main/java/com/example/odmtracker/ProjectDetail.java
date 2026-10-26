@@ -10,6 +10,7 @@ public class ProjectDetail {
     @Id @GeneratedValue(strategy=GenerationType.IDENTITY) public Long id;
     @Column(nullable=false) public Long projectId;
     public String materialModel;
+    public String brand;
     public String specification;
     public String productLine;
     public String owner;

@@ -2,9 +2,10 @@
 import { reactive, ref, watch } from 'vue'
 import { api } from './api'
 import { reportFields } from './report-fields'
-const props=defineProps({row:Object,customers:Array,defaultCustomerId:Number})
+import { initialReportForm } from './report-preferences'
+const props=defineProps({row:Object,customers:Array,defaultCustomerId:Number,initialDefaults:Object})
 const emit=defineEmits(['close','saved'])
-const form=reactive({...props.row,fields:Object.fromEntries(reportFields.map(([key])=>[key,props.row?.fields?.[key]??''])),customerId:props.row?.customerId??props.defaultCustomerId??null,category:props.row?.category||'开发',important:props.row?.important||false,currency:props.row?.currency||'',quantityUnit:props.row?.quantityUnit||'',priceTerms:props.row?.priceTerms||'',businessStage:props.row?.businessStage||''})
+const form=reactive(initialReportForm(props.row,props.initialDefaults,props.defaultCustomerId))
 const saving=ref(false),error=ref(''),stages=ref([])
 watch(()=>form.customerId,id=>{if(id){const c=props.customers.find(c=>c.id===id);if(c)form.fields.customerName=c.fullName}},{immediate:true})
 api.detailOptions().then(r=>stages.value=r.businessStages).catch(()=>{})
