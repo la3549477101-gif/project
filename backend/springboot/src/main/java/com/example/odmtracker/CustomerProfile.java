@@ -61,7 +61,7 @@ public final class CustomerProfile {
             if(!value.isEmpty() && field.type().equals("date")) {
                 try {
                     if(!value.matches("\\d{4}-\\d{2}-\\d{2}")) throw new DateTimeParseException("format",value,0);
-                    LocalDate.parse(value);
+                    if(LocalDate.parse(value).getYear()<1) throw new DateTimeParseException("year",value,0);
                 } catch(DateTimeParseException e) { throw bad(field.label()+"应为有效日期（年-月-日）"); }
             }
             if(value.isEmpty()) result.remove(key); else result.put(key,value);

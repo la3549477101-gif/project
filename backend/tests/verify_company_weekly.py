@@ -2,6 +2,7 @@
 import argparse
 import datetime as dt
 import json
+import re
 import subprocess
 import tempfile
 import time
@@ -14,10 +15,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--java', required=True)
 parser.add_argument('--jar', required=True)
 args, rest = parser.parse_known_args()
-BASE = 'http://127.0.0.1:18083/api'
+BASE = None
+SERVER = None
 
 
 def http(path, body=None, method=None):
+    if not BASE or SERVER is not None and SERVER.poll() is not None:
+        raise RuntimeError('Temporary server is not running; refusing HTTP access')
     req = urllib.request.Request(BASE + path, None if body is None else json.dumps(body).encode(),
                                  {'Content-Type': 'application/json'}, method=method)
     try:
@@ -33,28 +37,48 @@ class CompanyWorkflow(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(prefix='odm-company-test-')
         root = Path(cls.temp.name)
-        cls.log = (root / 'server.log').open('w', encoding='utf-8')
-        cls.process = subprocess.Popen([args.java, '-jar', args.jar, '--server.port=18083',
+        cls.log_path = root / 'server.log'
+        cls.log = cls.log_path.open('w', encoding='utf-8')
+        cls.process = subprocess.Popen([args.java, '-jar', args.jar, '--server.port=0',
             '--spring.datasource.url=jdbc:h2:file:' + (root / 'ledger').as_posix() + ';WRITE_DELAY=0',
             '--odm.flask-api=http://127.0.0.1:9/api'], stdout=cls.log, stderr=cls.log,
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-        for _ in range(100):
+        try:
+            CompanyWorkflow.wait_ready.__func__(cls)
+        except Exception:
+            if cls.process.poll() is None:
+                cls.process.terminate()
+            cls.process.wait(timeout=10)
+            cls.log.close()
+            diagnostic=cls.log_path.read_text(encoding='utf-8', errors='replace')
+            cls.temp.cleanup()
+            raise RuntimeError(diagnostic)
+
+    @classmethod
+    def wait_ready(cls):
+        global BASE, SERVER
+        BASE=None; SERVER=cls.process
+        for _ in range(120):
+            if cls.process.poll() is not None:
+                break
+            # Read only this child's own log, never probe a preselected fixed port.
+            found=re.search(r'Tomcat started on port (\d+)', cls.log_path.read_text(encoding='utf-8', errors='replace'))
             try:
-                if http('/health')[0] == 200:
+                if found:
+                    BASE='http://127.0.0.1:'+found.group(1)+'/api'
+                if BASE and http('/health')[0] == 200 and cls.process.poll() is None:
                     return
             except OSError:
                 pass
             if cls.process.poll() is not None:
                 break
             time.sleep(.2)
-        cls.process.terminate()
-        cls.process.wait(timeout=10)
-        cls.log.close()
-        raise RuntimeError((root / 'server.log').read_text(encoding='utf-8'))
+        raise RuntimeError('Temporary server failed to start')
 
     @classmethod
     def tearDownClass(cls):
-        cls.process.terminate()
+        if cls.process.poll() is None:
+            cls.process.terminate()
         cls.process.wait(timeout=15)
         cls.log.close()
         cls.temp.cleanup()

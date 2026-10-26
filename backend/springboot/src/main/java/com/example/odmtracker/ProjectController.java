@@ -30,8 +30,9 @@ public class ProjectController {
     public List<ProjectRecord> list(@RequestParam(required = false) String search,
                                     @RequestParam(required = false) String stage,
                                     @RequestParam(required = false) Long customerId,
-                                    @RequestParam(defaultValue = "false") boolean unassigned) {
-        return workspace.list(search,stage,customerId,unassigned);
+                                    @RequestParam(defaultValue = "false") boolean unassigned,
+                                    @RequestParam(defaultValue = "false") boolean important) {
+        return workspace.list(search,stage,customerId,unassigned,important);
     }
 
     private boolean contains(String value, String query) {
@@ -73,6 +74,12 @@ public class ProjectController {
     }
 
     public record Assignment(List<Long> ids, Long customerId) {}
+    public record PriorityInput(Boolean important) {}
+    @PostMapping("/{id}/priority")
+    public ProjectRecord priority(@PathVariable Long id,@RequestBody PriorityInput input) {
+        if(input==null||input.important()==null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"请选择是否标记为重点项目");
+        return workspace.setImportant(id,input.important());
+    }
     @PostMapping("/assign")
     public Map<String,Integer> assign(@RequestBody Assignment input) {
         return workspace.assign(input.ids(), input.customerId());

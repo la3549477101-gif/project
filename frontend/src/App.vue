@@ -19,13 +19,14 @@ const customerOpen = ref(false)
 const editingCustomer = ref(null)
 const folderBusy = ref(false)
 const assigning = ref(false)
+const priorityBusy = ref(false)
 const assignTarget = ref('__choose__')
 const revision = ref(0)
 const currentCompany = computed(() => customers.value.find(c => c.id === companyId.value) || null)
 const filteredCustomers = computed(() => customers.value.filter(c => [c.fullName,c.shortName,c.contactName].some(v => v?.toLowerCase().includes(companySearch.value.trim().toLowerCase()))))
-const bulkBusy = computed(() => deletingSelected.value || assigning.value)
-const projectView = computed(() => ['projects','company','unassigned'].includes(view.value))
-const viewTitle = computed(() => ({ customers:'客户公司',projects:'全部项目',weekly:'本周更新',unassigned:'未归属项目',company:currentCompany.value?.fullName || '客户公司' }[view.value]))
+const bulkBusy = computed(() => deletingSelected.value || assigning.value || priorityBusy.value)
+const projectView = computed(() => ['projects','company','unassigned','priority'].includes(view.value))
+const viewTitle = computed(() => ({ customers:'客户公司',projects:'全部项目',weekly:'本周更新',unassigned:'未归属项目',priority:'重点项目',company:currentCompany.value?.fullName || '客户公司' }[view.value]))
 const search = ref('')
 const stageFilter = ref('')
 const modalOpen = ref(false)
@@ -53,6 +54,7 @@ const stageLabels = {
 const visibleProjects = computed(() => projects.value.filter(p => {
   if (view.value === 'company' && p.customerId !== companyId.value) return false
   if (view.value === 'unassigned' && p.customerId != null) return false
+  if (view.value === 'priority' && !p.important) return false
   if (stageFilter.value && p.stage !== stageFilter.value) return false
   const query = search.value.trim().toLowerCase()
   return !query || [p.customerName,customerCandidate(p),p.terminalCustomer,p.odmIntegrator,p.moduleFactory,p.projectName,p.application].some(v => v?.toLowerCase().includes(query))
@@ -67,6 +69,7 @@ function customerCandidate(project) {
 const summary = computed(() => ({ projectCount: visibleProjects.value.length, testDemandTotal: visibleProjects.value.reduce((n,p) => n + Number(p.testDemandQuantity || 0),0), estimatedDemandTotal:visibleProjects.value.reduce((n,p) => n + Number(p.estimatedTotalDemand || 0),0), pvtCount:visibleProjects.value.filter(p => p.stage === 'PVT').length }))
 const projectCount = id => projects.value.filter(p => p.customerId === id).length
 const unassignedCount = computed(() => projects.value.filter(p => p.customerId == null).length)
+const priorityCount = computed(() => projects.value.filter(p => p.important).length)
 const selectedVisibleCount = computed(() => visibleProjects.value.filter(project => selectedIds.value.includes(project.id)).length)
 const allVisibleSelected = computed(() => visibleProjects.value.length > 0 && selectedVisibleCount.value === visibleProjects.value.length)
 const someVisibleSelected = computed(() => selectedVisibleCount.value > 0 && !allVisibleSelected.value)
@@ -125,6 +128,16 @@ function navigate(next, id = null) {
   sidebarOpen.value = false
 }
 function editCustomer(customer = null) { editingCustomer.value = customer; customerOpen.value = true }
+async function togglePriority(project) {
+  if (bulkBusy.value) return
+  priorityBusy.value = true; selectedIds.value = []
+  try {
+    await api.setPriority(project.id, !project.important)
+    await refresh()
+    showToast(project.important ? '已取消重点标记' : '已标记为重点项目')
+  } catch (err) { error.value = err.message }
+  finally { priorityBusy.value = false }
+}
 async function savedCustomer(customer) {
   customerOpen.value = false
   await refresh()
@@ -268,6 +281,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
       <nav class="primary-nav">
         <button :class="{ active: view === 'customers' }" :aria-current="view === 'customers' ? 'page' : undefined" :disabled="bulkBusy" @click="navigate('customers')">全部客户 <span>{{ customers.length }}</span></button>
         <button :class="{ active: view === 'projects' }" :disabled="bulkBusy" @click="navigate('projects')">全部项目 <span>{{ projects.length }}</span></button>
+        <button :class="{ active: view === 'priority' }" :aria-current="view === 'priority' ? 'page' : undefined" :disabled="bulkBusy" @click="navigate('priority')">★ 重点项目 <span>{{ priorityCount }}</span></button>
         <button :class="{ active: view === 'weekly' }" :aria-current="view === 'weekly' ? 'page' : undefined" :disabled="bulkBusy" @click="navigate('weekly')">◷ 本周更新</button>
         <button :class="{ active: view === 'unassigned' }" :disabled="bulkBusy" @click="navigate('unassigned')">未归属项目 <span>{{ unassignedCount }}</span></button>
       </nav>
@@ -314,7 +328,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
     </section>
 
     <section v-if="projectView" class="panel">
-      <div class="panel-heading"><div><span class="section-index">01 / 项目</span><h2>{{ view === 'company' ? '该公司项目' : view === 'unassigned' ? '未归属项目' : '项目总览' }}</h2></div><span class="panel-hint">上方统计对应当前项目列表</span></div>
+      <div class="panel-heading"><div><span class="section-index">01 / 项目</span><h2>{{ view === 'company' ? '该公司项目' : view === 'unassigned' ? '未归属项目' : view === 'priority' ? '重点项目' : '项目总览' }}</h2></div><span class="panel-hint">上方统计对应当前项目列表</span></div>
       <p v-if="view === 'unassigned'" class="unassigned-help">原表客户仅供核对。确认后先新建客户公司，再搜索原表客户、勾选对应项目并归属到公司。</p>
       <div class="toolbar">
         <div class="filters"><input v-model="search" class="field search" type="search" placeholder="搜索客户、集成商、项目名称…" :disabled="bulkBusy"><select v-model="stageFilter" class="field stage-filter" :disabled="bulkBusy"><option value="">全部测试阶段</option><option value="EVT" title="工程验证测试阶段">EVT（工程验证）</option><option value="DVT" title="设计验证测试阶段">DVT（设计验证）</option><option value="PVT" title="生产验证测试阶段">PVT（生产验证）</option></select></div>
@@ -330,8 +344,8 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
           <template v-else-if="key === 'customerName' && !p.customerId"><span class="muted">未归属</span><small v-if="customerCandidate(p)" class="customer-candidate">原表：{{ customerCandidate(p) }}（待确认）</small></template>
           <template v-else-if="key === 'projectName'"><strong>{{ p[key] || '—' }}</strong><span v-if="p.reportData" class="source-badge">开发报告</span></template>
           <span v-else>{{ p[key] == null || p[key] === '' ? '—' : p[key] }}</span>
-        </td><td class="row-actions"><button class="text-button" :disabled="bulkBusy" @click="businessProject = p">规格与跟进</button><button class="text-button" :disabled="bulkBusy" @click="openEdit(p)">编辑</button><button class="text-button danger" :disabled="bulkBusy" @click="removeProject(p)">删除</button></td></tr>
-        <tr v-if="!visibleProjects.length"><td class="empty" :colspan="columns.length + 2"><div class="empty-orbit" aria-hidden="true">＋</div><strong>{{ loading ? '正在读取项目' : '还没有项目记录' }}</strong><span>新建项目，或点击“导入项目数据”选择已填写的数据文件。</span></td></tr></tbody>
+        </td><td class="row-actions"><button class="text-button priority-toggle" :class="{ 'is-important': p.important }" :aria-pressed="!!p.important" :disabled="bulkBusy" @click="togglePriority(p)">{{ p.important ? '★ 取消重点' : '☆ 标记重点' }}</button><button class="text-button" :disabled="bulkBusy" @click="businessProject = p">规格与跟进</button><button class="text-button" :disabled="bulkBusy" @click="openEdit(p)">编辑</button><button class="text-button danger" :disabled="bulkBusy" @click="removeProject(p)">删除</button></td></tr>
+        <tr v-if="!visibleProjects.length"><td class="empty" :colspan="columns.length + 2"><div class="empty-orbit" aria-hidden="true">＋</div><strong>{{ loading ? '正在读取项目' : view === 'priority' ? '还没有标记为重点的项目' : '还没有项目记录' }}</strong><span>{{ view === 'priority' ? '在全部项目或公司项目中点击“标记重点”，即可集中查看。' : '新建项目，或点击“导入项目数据”选择已填写的数据文件。' }}</span></td></tr></tbody>
       </table></div>
       <footer class="footer"><span>项目资料保存到本机。</span><span>“导出项目数据”导出全部项目，不包含客户完整档案和变更历史</span></footer>
     </section>

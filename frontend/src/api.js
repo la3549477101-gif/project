@@ -18,6 +18,7 @@ export const api = {
   customers: () => request(`${SPRING}/customers`),
   customerProfileSchema: () => request(`${SPRING}/customers/profile-schema`),
   detailOptions: () => request(`${SPRING}/projects/detail-options`),
+  setPriority: (id, important) => request(`${SPRING}/projects/${id}/priority`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ important }) }),
   projectDetails: (id) => request(`${SPRING}/projects/${id}/details`),
   saveDetail: (projectId, id, detail) => request(`${SPRING}/projects/${projectId}/details${id ? '/' + id : ''}`, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(detail) }),
   archiveDetail: (projectId, id, archived) => request(`${SPRING}/projects/${projectId}/details/${id}/archive`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archived }) }),

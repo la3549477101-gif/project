@@ -24,6 +24,7 @@ public class ProjectRecord {
     private Long testDemandQuantity;
     private Long estimatedTotalDemand;
     private LocalDate expectedMpDate;
+    private Boolean important;
     @Lob
     private String reportData;
     public Long customerId;
@@ -32,6 +33,8 @@ public class ProjectRecord {
     public java.time.Instant updatedAt;
 
     public ProjectRecord() {}
+    public boolean isImportant() { return Boolean.TRUE.equals(important); }
+    public void setImportant(boolean important) { this.important=important; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

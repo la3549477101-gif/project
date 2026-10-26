@@ -257,6 +257,9 @@ tbody tr:hover td { background: #133441; }
 .business-detail-table small { color:var(--ocean-muted); margin-top:5px; }
 .business-detail-table p { margin:7px 0 0; }.business-detail-table summary { cursor:pointer; color:var(--ocean-accent); margin-top:8px; }
 .business-stage { color:var(--ocean-accent); font-weight:600; }.business-row-actions { display:flex; flex-direction:column; gap:12px; align-items:flex-start; }
+.row-actions { flex-wrap:wrap; min-width:190px; }
+.priority-toggle { font-size:12px; }
+.priority-toggle.is-important { color:#e5cb8d; }
 .is-archived { opacity:.65; }.business-empty { padding:35px 22px; text-align:center; color:var(--ocean-muted); line-height:1.8; font-size:12px; white-space:normal; }
 .business-editor { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
 .business-editor label { min-width:0; }.business-editor input,.business-editor select,.business-editor textarea { width:100%; min-width:0; }

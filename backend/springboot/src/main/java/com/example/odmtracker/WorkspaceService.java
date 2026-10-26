@@ -169,12 +169,23 @@ public class WorkspaceService {
         if(!ids.isEmpty() && (details.existsByProjectIdIn(ids)||followups.existsByProjectIdIn(ids)))
             throw new ResponseStatusException(HttpStatus.CONFLICT,"所选项目包含型号规格或跟进历史，已阻止删除，请保留项目档案；批量操作未删除任何项目");
     }
-    public List<ProjectRecord> list(String search,String stage,Long customerId,boolean unassigned) {
+    @Transactional
+    public ProjectRecord setImportant(Long id,boolean important) {
+        ProjectRecord p=projects.findLockedById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"项目不存在"));
+        if(p.isImportant()!=important) {
+            p.setImportant(important);p.updatedAt=Instant.now();projects.saveAndFlush(p);
+            log(p.customerId,null,id,p.getProjectName(),"PROJECT","UPDATE",important?"标记为重点项目":"取消重点项目标记");
+        }
+        p.customerName=companyName(p.customerId);
+        return p;
+    }
+    public List<ProjectRecord> list(String search,String stage,Long customerId,boolean unassigned,boolean important) {
         if(customerId!=null) checkCustomer(customerId);
         String query=search==null?"":search.trim().toLowerCase(Locale.ROOT);
         Map<Long,String> names=new HashMap<>(); customers.findAll().forEach(c->names.put(c.id,c.fullName));
         return projects.findAll().stream().filter(p->customerId==null||Objects.equals(p.customerId,customerId))
             .filter(p->!unassigned||p.customerId==null)
+            .filter(p->!important||p.isImportant())
             .filter(p->stage==null||stage.isBlank()||stage.equals(p.getStage()))
             .peek(p->p.customerName=p.customerId==null?"":names.getOrDefault(p.customerId,""))
             .filter(p->query.isBlank()||Arrays.asList(p.customerName,p.getTerminalCustomer(),p.getOdmIntegrator(),p.getModuleFactory(),p.getProjectName(),p.getApplication())
