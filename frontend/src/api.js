@@ -17,6 +17,12 @@ async function request(url, options = {}) {
 export const api = {
   customers: () => request(`${SPRING}/customers`),
   customerProfileSchema: () => request(`${SPRING}/customers/profile-schema`),
+  detailOptions: () => request(`${SPRING}/projects/detail-options`),
+  projectDetails: (id) => request(`${SPRING}/projects/${id}/details`),
+  saveDetail: (projectId, id, detail) => request(`${SPRING}/projects/${projectId}/details${id ? '/' + id : ''}`, { method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(detail) }),
+  archiveDetail: (projectId, id, archived) => request(`${SPRING}/projects/${projectId}/details/${id}/archive`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archived }) }),
+  followups: (id, page = 0) => request(`${SPRING}/projects/${id}/followups?page=${page}&size=20`),
+  appendFollowup: (id, followup) => request(`${SPRING}/projects/${id}/followups`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(followup) }),
   createCustomer: (customer) => request(`${SPRING}/customers`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(customer) }),
   updateCustomer: (id, customer) => request(`${SPRING}/customers/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(customer) }),
   retryFolder: (id) => request(`${SPRING}/customers/${id}/folder/retry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }),

@@ -4,9 +4,11 @@ import { api } from './api'
 import ImportDialog from './ImportDialog.vue'
 import CustomerDialog from './CustomerDialog.vue'
 import CustomerProfile from './CustomerProfile.vue'
+import ProjectBusiness from './ProjectBusiness.vue'
 import WeeklyUpdates from './WeeklyUpdates.vue'
 
 const projects = ref([])
+const businessProject = ref(null)
 const customers = ref([])
 const customerProfileGroups = ref([])
 const view = ref('customers')
@@ -41,7 +43,7 @@ const emptyForm = () => ({ customerId: null, terminalCustomer: '', odmIntegrator
 const form = reactive(emptyForm())
 const columns = [
   ['customerName', '采购客户公司'],
-  ['terminalCustomer', '终端客户'], ['odmIntegrator', 'ODM（原始设计制造商）集成商'], ['moduleFactory', '模组厂'], ['projectName', '项目名称'], ['application', '应用'], ['stage', '目前阶段'], ['testDemandQuantity', '测试阶段需求数量'], ['estimatedTotalDemand', '项目预计总需求量'], ['expectedMpDate', '预计 MP（量产）日期'],
+  ['terminalCustomer', '终端客户'], ['odmIntegrator', 'ODM（原始设计制造商）集成商'], ['moduleFactory', '模组厂'], ['projectName', '项目名称'], ['application', '应用'], ['stage', '测试验证阶段'], ['testDemandQuantity', '测试阶段需求数量'], ['estimatedTotalDemand', '项目预计总需求量'], ['expectedMpDate', '预计 MP（量产）日期'],
 ]
 const stageLabels = {
   EVT: 'EVT（工程验证测试）',
@@ -141,7 +143,7 @@ function openProjectById(id) {
   const project = projects.value.find(p => p.id === id)
   if (!project) { showToast('该项目已不存在，请刷新'); return }
   navigate(project.customerId ? 'company' : 'unassigned', project.customerId || null)
-  openEdit(project)
+  businessProject.value = project
 }
 function openCustomerById(id) {
   const customer = customers.value.find(c => c.id === id)
@@ -315,7 +317,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
       <div class="panel-heading"><div><span class="section-index">01 / 项目</span><h2>{{ view === 'company' ? '该公司项目' : view === 'unassigned' ? '未归属项目' : '项目总览' }}</h2></div><span class="panel-hint">上方统计对应当前项目列表</span></div>
       <p v-if="view === 'unassigned'" class="unassigned-help">原表客户仅供核对。确认后先新建客户公司，再搜索原表客户、勾选对应项目并归属到公司。</p>
       <div class="toolbar">
-        <div class="filters"><input v-model="search" class="field search" type="search" placeholder="搜索客户、集成商、项目名称…" :disabled="bulkBusy"><select v-model="stageFilter" class="field stage-filter" :disabled="bulkBusy"><option value="">全部阶段</option><option value="EVT" title="工程验证测试阶段">EVT（工程验证）</option><option value="DVT" title="设计验证测试阶段">DVT（设计验证）</option><option value="PVT" title="生产验证测试阶段">PVT（生产验证）</option></select></div>
+        <div class="filters"><input v-model="search" class="field search" type="search" placeholder="搜索客户、集成商、项目名称…" :disabled="bulkBusy"><select v-model="stageFilter" class="field stage-filter" :disabled="bulkBusy"><option value="">全部测试阶段</option><option value="EVT" title="工程验证测试阶段">EVT（工程验证）</option><option value="DVT" title="设计验证测试阶段">DVT（设计验证）</option><option value="PVT" title="生产验证测试阶段">PVT（生产验证）</option></select></div>
         <span class="count">{{ loading ? '加载中…' : `显示 ${visibleProjects.length} 个项目` }}</span>
       </div>
       <div v-if="selectedIds.length" class="selection-toolbar" role="status">
@@ -328,7 +330,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
           <template v-else-if="key === 'customerName' && !p.customerId"><span class="muted">未归属</span><small v-if="customerCandidate(p)" class="customer-candidate">原表：{{ customerCandidate(p) }}（待确认）</small></template>
           <template v-else-if="key === 'projectName'"><strong>{{ p[key] || '—' }}</strong><span v-if="p.reportData" class="source-badge">开发报告</span></template>
           <span v-else>{{ p[key] == null || p[key] === '' ? '—' : p[key] }}</span>
-        </td><td class="row-actions"><button class="text-button" :disabled="bulkBusy" @click="openEdit(p)">编辑</button><button class="text-button danger" :disabled="bulkBusy" @click="removeProject(p)">删除</button></td></tr>
+        </td><td class="row-actions"><button class="text-button" :disabled="bulkBusy" @click="businessProject = p">规格与跟进</button><button class="text-button" :disabled="bulkBusy" @click="openEdit(p)">编辑</button><button class="text-button danger" :disabled="bulkBusy" @click="removeProject(p)">删除</button></td></tr>
         <tr v-if="!visibleProjects.length"><td class="empty" :colspan="columns.length + 2"><div class="empty-orbit" aria-hidden="true">＋</div><strong>{{ loading ? '正在读取项目' : '还没有项目记录' }}</strong><span>新建项目，或点击“导入项目数据”选择已填写的数据文件。</span></td></tr></tbody>
       </table></div>
       <footer class="footer"><span>项目资料保存到本机。</span><span>“导出项目数据”导出全部项目，不包含客户完整档案和变更历史</span></footer>
@@ -342,7 +344,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
           <label class="wide">采购客户公司<select v-model="form.customerId"><option :value="null">暂不归属公司</option><option v-for="c in customers" :key="c.id" :value="c.id">{{ c.fullName }}</option></select></label>
           <label>终端客户<input v-model.trim="form.terminalCustomer"></label><label>ODM（原始设计制造商）集成商<input v-model.trim="form.odmIntegrator"></label>
           <label>模组厂<input v-model.trim="form.moduleFactory"></label><label>项目名称<input v-model.trim="form.projectName" required></label>
-          <label>应用<input v-model.trim="form.application"></label><label>目前阶段<select v-model="form.stage"><option value="">请选择</option><option value="EVT">EVT（工程验证测试）</option><option value="DVT">DVT（设计验证测试）</option><option value="PVT">PVT（生产验证测试）</option></select></label>
+          <label>应用<input v-model.trim="form.application"></label><label>测试验证阶段<select v-model="form.stage"><option value="">请选择</option><option value="EVT">EVT（工程验证测试）</option><option value="DVT">DVT（设计验证测试）</option><option value="PVT">PVT（生产验证测试）</option></select></label>
           <label>测试阶段需求数量<input v-model="form.testDemandQuantity" type="number" min="0" step="1"></label><label>项目预计总需求量<input v-model="form.estimatedTotalDemand" type="number" min="0" step="1"></label>
           <label>预计 MP（量产）日期<input v-model="form.expectedMpDate" type="date"></label>
           <details v-if="form.reportData" class="report-details form-report-details"><summary>查看原开发报告（{{ formReportFields.length || '原始' }} 项）</summary><p v-if="formReport" class="report-origin">{{ formReport.file || '原报告' }} · {{ formReport.sheet || '工作表' }}<template v-if="formReport.row"> · 第 {{ formReport.row }} 行</template></p><dl v-if="formReportFields.length" class="report-fields"><template v-for="[label, value] in formReportFields" :key="label"><dt>{{ label }}</dt><dd>{{ value === '' || value == null ? '（空）' : value }}</dd></template></dl><p v-else class="muted">原报告内容已保留，但无法展开显示。</p></details>
@@ -350,6 +352,7 @@ onUnmounted(() => { clearTimeout(toastTimer); refreshId++ })
         </form>
       </section>
     </div>
+    <ProjectBusiness v-if="businessProject" :key="businessProject.id" :project="businessProject" @close="businessProject = null" @changed="refresh" />
     <CustomerDialog v-if="customerOpen" :customer="editingCustomer" :customers="customers" :groups="customerProfileGroups" @close="customerOpen = false" @saved="savedCustomer" />
     <ImportDialog v-if="importOpen" :customers="customers" :default-customer-id="view === 'company' ? companyId : null" @close="importOpen = false" @imported="imported" />
     <div v-if="toast" class="toast" role="status">{{ toast }}</div>

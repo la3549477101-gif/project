@@ -21,6 +21,6 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> malformed(HttpMessageNotReadableException exception) {
-        return ResponseEntity.badRequest().body(Map.of("message", "数据格式错误，请检查数量和日期格式"));
+        return ResponseEntity.badRequest().body(Map.of("message", "数据格式错误，请检查数字、日期及字段类型"));
     }
 }

@@ -13,8 +13,11 @@ public class WorkspaceService {
     private final ProjectRepository projects;
     private final CustomerRepository customers;
     private final ChangeRepository changes;
-    public WorkspaceService(ProjectRepository projects, CustomerRepository customers, ChangeRepository changes) {
+    private final ProjectDetailRepository details;
+    private final FollowupRepository followups;
+    public WorkspaceService(ProjectRepository projects, CustomerRepository customers, ChangeRepository changes,ProjectDetailRepository details,FollowupRepository followups) {
         this.projects=projects; this.customers=customers; this.changes=changes;
+        this.details=details;this.followups=followups;
     }
     public CustomerRecord customer(Long id) {
         return customers.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,"客户不存在"));
@@ -79,6 +82,10 @@ public class WorkspaceService {
         event.projectId=projectId; event.objectName=name; event.entityType=type; event.action=action; event.detail=detail;
         changes.save(event);
     }
+    void projectActivity(ProjectRecord project,String type,String action,String item,String detail) {
+        project.updatedAt=Instant.now();projects.save(project);
+        log(project.customerId,null,project.getId(),project.getProjectName()+" · "+item,type,action,detail);
+    }
     private static String display(Object value) { return value==null || value.toString().isEmpty() ? "（空）" : value.toString(); }
     private String diff(String[] labels,Object[] before,Object[] after) {
         List<String> result=new ArrayList<>();
@@ -92,7 +99,7 @@ public class WorkspaceService {
     @Transactional
     public ProjectRecord saveProject(Long id,ProjectRecord input) {
         checkCustomer(input.customerId);
-        ProjectRecord p=id==null ? new ProjectRecord() : projects.findById(id)
+        ProjectRecord p=id==null ? new ProjectRecord() : projects.findLockedById(id)
             .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"项目不存在"));
         Long oldCompany=p.customerId;
         Object[] old=values(p);
@@ -126,7 +133,7 @@ public class WorkspaceService {
     public Map<String,Integer> assign(List<Long> ids,Long customerId) {
         checkCustomer(customerId);
         List<Long> unique=validIds(ids);
-        List<ProjectRecord> selected=projects.findAllById(unique);
+        List<ProjectRecord> selected=lockedProjects(unique);
         if(selected.size()!=unique.size()) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"部分项目已不存在，请刷新后重试");
         int count=0;
         for(ProjectRecord p:selected) if(!Objects.equals(p.customerId,customerId)) {
@@ -144,13 +151,23 @@ public class WorkspaceService {
     }
     @Transactional
     public int deleteMany(List<Long> ids) {
-        List<ProjectRecord> selected=projects.findAllById(validIds(ids));
+        List<ProjectRecord> selected=lockedProjects(validIds(ids));
+        protectHistory(selected.stream().map(ProjectRecord::getId).toList());
         projects.deleteAll(selected); return selected.size();
     }
     @Transactional
     public void delete(Long id) {
-        ProjectRecord p=projects.findById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"项目不存在"));
+        ProjectRecord p=projects.findLockedById(id).orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"项目不存在"));
+        protectHistory(List.of(id));
         projects.delete(p);
+    }
+    private List<ProjectRecord> lockedProjects(List<Long> ids) {
+        // A fixed lock order also prevents competing batch operations from deadlocking.
+        return ids.stream().sorted().map(projects::findLockedById).flatMap(Optional::stream).toList();
+    }
+    private void protectHistory(List<Long> ids) {
+        if(!ids.isEmpty() && (details.existsByProjectIdIn(ids)||followups.existsByProjectIdIn(ids)))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"所选项目包含型号规格或跟进历史，已阻止删除，请保留项目档案；批量操作未删除任何项目");
     }
     public List<ProjectRecord> list(String search,String stage,Long customerId,boolean unassigned) {
         if(customerId!=null) checkCustomer(customerId);

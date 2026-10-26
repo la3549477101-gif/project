@@ -10,7 +10,7 @@ public class ChangeRecord {
     public Long previousCustomerId;
     public String previousCustomerName;
     public Long projectId;
-    public String objectName;
+    @Column(length=2000) public String objectName;
     public String entityType;
     public String action;
     @Lob public String detail;
